@@ -53,13 +53,14 @@
   let totalPages = 1;
 
   // Filter settings
-  let activeTab = "joined"; // Default to 'joined' tab
+  let activeTab = "joined"; // Will be set based on auth state
   let searchQuery = "";
   let selectedCategories: string[] = [];
   let availableCategories: string[] = [];
   
   // Enhanced search settings
   let showFilters = false;
+  let searchTimeout: ReturnType<typeof setTimeout>;
 
   // Community data
   let isLoading = false;
@@ -83,7 +84,7 @@
 
     try {
       // Prepare parameters for API call - clean empty values
-      const params = {
+      const params: any = {
         page: currentPage,
         limit: limit
       };
@@ -191,7 +192,7 @@
 
         // Check membership status for communities in the discover tab
         if (activeTab === "discover" || activeTab === "all") {
-          checkMembershipStatusForAll();
+          await checkMembershipStatusForAll();
         }
 
         error = null;
@@ -212,24 +213,6 @@
       error = "An unexpected error occurred";
     } finally {
       isLoading = false;
-    }
-  }
-
-  // Fetch available categories
-  async function fetchCategories() {
-    try {
-      const response = await getCategories();
-
-      // Handle both array response and object with categories property
-      if (Array.isArray(response)) {
-        availableCategories = response.map(cat => cat.name);
-      } else if (response && typeof response === "object" && "categories" in response) {
-        // Use type assertion to tell TypeScript this is a valid object with categories property
-        const typedResponse = response as { categories: ICategory[] };
-        availableCategories = typedResponse.categories.map(cat => cat.name);
-      }
-    } catch (error) {
-      logger.error("Error fetching categories:", error);
     }
   }
 
@@ -303,26 +286,56 @@
     }
   }
 
-  let searchTimeout: any;
-
-  // Toggle filters visibility
-  function toggleFilters() {
-    showFilters = !showFilters;
-  }
-
   // Handle category filter change
   function handleCategoryChange(event: CustomEvent) {
-    selectedCategories = event.detail.categories;
+    selectedCategories = event.detail.selected;
     currentPage = 1; // Reset to first page when changing filters
     fetchCommunities();
   }
 
-  // Clear all filters and search
+  // Toggle filter visibility
+  function toggleFilters() {
+    showFilters = !showFilters;
+  }
+
+  // Clear all filters
+  // Clear all filters
   function clearFilters() {
     searchQuery = "";
     selectedCategories = [];
     currentPage = 1;
     fetchCommunities();
+  }
+
+  // Fetch categories for filter dropdown
+  async function fetchCategories() {
+    try {
+      const categoriesResponse = await getCategories();
+      console.log("[Communities] Categories API response:", categoriesResponse);
+
+      if (categoriesResponse) {
+        if (Array.isArray(categoriesResponse)) {
+          // Handle direct array response
+          availableCategories = categoriesResponse.map((cat: ICategory) => cat.name);
+        } else if ((categoriesResponse as any).data && Array.isArray((categoriesResponse as any).data.categories)) {
+          // Handle nested response structure
+          availableCategories = (categoriesResponse as any).data.categories.map((cat: ICategory) => cat.name);
+        } else if (Array.isArray((categoriesResponse as any).categories)) {
+          // Handle flat response structure
+          availableCategories = (categoriesResponse as any).categories.map((cat: ICategory) => cat.name);
+        } else {
+          availableCategories = [];
+        }
+      } else {
+        logger.error("[Communities] Error fetching categories: No response");
+        availableCategories = [];
+      }
+
+      console.log("[Communities] Available categories:", availableCategories);
+    } catch (error) {
+      logger.error("[Communities] Exception fetching categories:", error);
+      availableCategories = [];
+    }
   }
 
   // Quick search for all communities
@@ -476,15 +489,18 @@
   // Initial data loading
   onMount(() => {
     authState = getAuthState();
+    
+    // Set default tab based on authentication status
     if (authState.is_authenticated) {
+      activeTab = "joined"; // Authenticated users see joined communities first
       fetchCategories();
       fetchCommunities();
     } else {
-      logger.warn("User not authenticated");
-      toastStore.showToast("Sign in to view your communities", "info");
+      activeTab = "all"; // Unauthenticated users see all communities first
+      logger.info("User not authenticated, showing all communities");
       // Still fetch categories and show all communities for non-authenticated users
       fetchCategories();
-      setActiveTab("all");
+      fetchCommunities();
     }
   });
 </script>
@@ -618,7 +634,13 @@
                   <div class="banner-placeholder"></div>
                 {/if}
               </div>
-              <div class="community-card-content" on:click={() => handleCommunityClick(community.id)}>
+              <div 
+                class="community-card-content" 
+                on:click={() => handleCommunityClick(community.id)}
+                on:keydown={(e) => e.key === 'Enter' && handleCommunityClick(community.id)}
+                role="button"
+                tabindex="0"
+              >
                 <div class="community-logo">
                   {#if community.logo_url || community.logoUrl || community.logo}
                     <img
@@ -852,151 +874,205 @@
     background-color: var(--primary-dark, #2c5282);
   }
 
+  /* Enhanced search and filter styles */
   .search-filter-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
     margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .dark .search-filter-container {
+    background: #1a202c;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
   }
 
   .search-section {
     display: flex;
-    gap: 1rem;
     align-items: center;
+    gap: 1rem;
+    padding: 1rem;
     flex-wrap: wrap;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 280px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .search-box:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .dark .search-box {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+
+  .dark .search-box:focus-within {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+  }
+
+  .search-box input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.875rem;
+    color: #2d3748;
+  }
+
+  .dark .search-box input {
+    color: #e2e8f0;
+  }
+
+  .search-box input::placeholder {
+    color: #a0aec0;
+  }
+
+  .dark .search-box input::placeholder {
+    color: #718096;
+  }
+
+  .search-box button {
+    padding: 0.75rem;
+    border: none;
+    background: #3b82f6;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .search-box button:hover {
+    background: #2563eb;
   }
 
   .search-actions {
     display: flex;
-    gap: 0.5rem;
     align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
   }
 
   .filter-toggle-button {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     border: 1px solid #e2e8f0;
-    border-radius: 0.25rem;
-    background-color: #ffffff;
-    color: #4a5568;
-    font-size: 0.875rem;
+    background: white;
+    color: #374151;
+    border-radius: 0.5rem;
     cursor: pointer;
-    transition: all 0.2s;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
   }
 
   .filter-toggle-button:hover {
-    background-color: #f7fafc;
-    border-color: #cbd5e1;
+    background: #f9fafb;
+    border-color: #d1d5db;
   }
 
   .filter-toggle-button.active {
-    background-color: var(--primary-color, #3182ce);
+    background: #3b82f6;
+    border-color: #3b82f6;
     color: white;
-    border-color: var(--primary-color, #3182ce);
   }
 
   .dark .filter-toggle-button {
-    background-color: #2d3748;
-    color: #e2e8f0;
+    background: #2d3748;
     border-color: #4a5568;
+    color: #e2e8f0;
   }
 
   .dark .filter-toggle-button:hover {
-    background-color: #4a5568;
-    border-color: #718096;
-  }
-
-  .dark .filter-toggle-button.active {
-    background-color: var(--primary-color, #3182ce);
-    color: white;
-    border-color: var(--primary-color, #3182ce);
+    background: #4a5568;
   }
 
   .clear-filters-button {
-    padding: 0.5rem 1rem;
-    border: 1px solid #e53e3e;
-    border-radius: 0.25rem;
-    background-color: #ffffff;
-    color: #e53e3e;
-    font-size: 0.875rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ef4444;
+    background: white;
+    color: #ef4444;
+    border-radius: 0.5rem;
     cursor: pointer;
-    transition: all 0.2s;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
   }
 
   .clear-filters-button:hover {
-    background-color: #e53e3e;
+    background: #ef4444;
     color: white;
   }
 
   .dark .clear-filters-button {
-    background-color: #2d3748;
-    border-color: #fc8181;
-    color: #fc8181;
-  }
-
-  .dark .clear-filters-button:hover {
-    background-color: #e53e3e;
-    color: white;
+    background: #1a202c;
   }
 
   .filters-section {
+    border-top: 1px solid #e2e8f0;
     padding: 1rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    background-color: #f7fafc;
+    background: #f8fafc;
+    animation: slideDown 0.2s ease-out;
   }
 
   .dark .filters-section {
-    background-color: #2d3748;
     border-color: #4a5568;
+    background: #2d3748;
   }
 
-  .search-box {
-    flex: 1;
-    position: relative;
-    min-width: 250px;
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
-  .search-box input {
-    width: 100%;
-    padding: 0.5rem 2.5rem 0.5rem 1rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    outline: none;
-    transition: border-color 0.2s;
-  }
+  /* Improved responsive design for search */
+  @media (max-width: 640px) {
+    .search-section {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.75rem;
+    }
 
-  .dark .search-box input {
-    background-color: #2d3748;
-    color: #e2e8f0;
-    border-color: #4a5568;
-  }
+    .search-box {
+      min-width: 100%;
+    }
 
-  .search-box input:focus {
-    border-color: var(--primary-color, #3182ce);
-  }
+    .search-actions {
+      justify-content: center;
+      flex-wrap: wrap;
+    }
 
-  .search-box button {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #718096;
-    cursor: pointer;
-    padding: 0.25rem;
-  }
-
-  .dark .search-box button {
-    color: #a0aec0;
-  }
-
-  .search-box button:hover {
-    color: var(--primary-color, #3182ce);
+    .filter-toggle-button,
+    .clear-filters-button {
+      flex: 1;
+      justify-content: center;
+      min-width: 120px;
+    }
   }
 
   .tab-container {
@@ -1181,14 +1257,6 @@
     color: white;
     font-weight: bold;
     font-size: 1.5rem;
-  }
-
-  .logo-placeholder-fallback {
-    display: none;
-  }
-
-  .logo-placeholder .logo-placeholder-fallback {
-    display: block;
   }
 
   .community-info {
@@ -1477,11 +1545,6 @@
     }
   }
 
-  /* Add styles for image error handling */
-  .image-error {
-    display: none !important;
-  }
-
   .banner-placeholder {
     height: 100%;
     width: 100%;
@@ -1522,13 +1585,5 @@
     color: white;
     font-weight: bold;
     font-size: 1.5rem;
-  }
-
-  .logo-placeholder-fallback {
-    display: none;
-  }
-
-  .logo-placeholder .logo-placeholder-fallback {
-    display: block;
   }
 </style>

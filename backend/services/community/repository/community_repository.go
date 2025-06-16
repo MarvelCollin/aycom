@@ -173,7 +173,7 @@ func (r *GormCommunityRepository) ListByUserMembership(userID uuid.UUID, status 
 
 	query := r.db.Model(&model.Community{}).
 		Preload("Categories").
-		Select("DISTINCT communities.*") 
+		Select("DISTINCT communities.*")
 
 	if status == "member" {
 

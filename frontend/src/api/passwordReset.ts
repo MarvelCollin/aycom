@@ -20,7 +20,6 @@ export async function getSecurityQuestion(email: string, recaptchaToken: string 
     throw new Error(responseData.message || "Invalid email or account is banned.");
   }
 
-  // Extract data from the nested structure
   const data = responseData.data || responseData;
 
   return {
@@ -44,7 +43,6 @@ export async function verifySecurityAnswer(email: string, answer: string) {
     throw new Error(responseData.message || "Incorrect answer.");
   }
 
-  // Extract data from the nested structure
   const data = responseData.data || responseData;
 
   return {

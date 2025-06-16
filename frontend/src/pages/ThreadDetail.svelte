@@ -12,6 +12,7 @@
   import type { ITweet } from "../interfaces/ISocialMedia";
   import type { ExtendedTweet } from "../interfaces/ITweet.extended";
   import { ensureTweetFormat } from "../interfaces/ITweet.extended";
+  import MediaOverlay from "../components/media/MediaOverlay.svelte";
 
   const { theme } = useTheme();
 
@@ -30,6 +31,12 @@
   let replyToTweet: ITweet | null = null;
   let replyText = '';
   let isSubmitting = false;
+  
+  // Media overlay state
+  let showMediaOverlay = false;
+  let currentMediaIndex = 0;
+  let currentMediaArray: any[] = [];
+  let currentTweet: ExtendedTweet | null = null;
   
   let isDarkMode = false;
 
@@ -635,6 +642,66 @@
     // Implement repost functionality here if needed
   }
 
+  // Handle media overlay functionality
+  function openMediaOverlay(tweet: ExtendedTweet, mediaIndex: number = 0) {
+    if (!tweet.media || tweet.media.length === 0) return;
+    
+    currentTweet = tweet;
+    currentMediaArray = tweet.media;
+    currentMediaIndex = mediaIndex;
+    showMediaOverlay = true;
+  }
+
+  function closeMediaOverlay() {
+    showMediaOverlay = false;
+    currentTweet = null;
+    currentMediaArray = [];
+    currentMediaIndex = 0;
+  }
+
+  function handleMediaClick(event: CustomEvent) {
+    const { tweet, mediaIndex } = event.detail;
+    openMediaOverlay(tweet, mediaIndex || 0);
+  }
+
+  // Function to add mock images to the current thread for testing
+  function triggerMockImages() {
+    if (!thread) return;
+
+    const mockImages = [
+      {
+        id: "mock-1",
+        type: "image",
+        url: "https://picsum.photos/800/600?random=1",
+        thumbnail_url: "https://picsum.photos/400/300?random=1",
+        alt_text: "Mock Image 1"
+      },
+      {
+        id: "mock-2", 
+        type: "image",
+        url: "https://picsum.photos/800/700?random=2",
+        thumbnail_url: "https://picsum.photos/400/350?random=2",
+        alt_text: "Mock Image 2"
+      },
+      {
+        id: "mock-3",
+        type: "image", 
+        url: "https://picsum.photos/900/600?random=3",
+        thumbnail_url: "https://picsum.photos/450/300?random=3",
+        alt_text: "Mock Image 3"
+      }
+    ];
+
+    // Add mock images to the thread
+    thread = {
+      ...thread,
+      media: mockImages
+    };
+
+    console.log("Mock images added to thread:", thread.media);
+    toastStore.showToast("Mock images added! Click on any image to test the overlay.", "success");
+  }
+
   // Initialize component
   onMount(() => {
     // Check if we have thread data in sessionStorage from TweetCard navigation
@@ -716,13 +783,14 @@
           on:removeBookmark={handleRemoveBookmark}
           on:repost={handleRepost}
           on:loadReplies={handleLoadReplies}
+          on:mediaClick={handleMediaClick}
         />
 
         <!-- Reply Modal (improved from Feed.svelte) -->
         <!-- Now handled by inline modal at the bottom of the component -->
 
         <!-- Reply to Thread Button -->
-        <div class="p-4">
+        <div class="p-4" style="display: flex; gap: 12px; flex-wrap: wrap;">
           <button
             class="reply-button"
             on:click={() => {
@@ -737,6 +805,14 @@
             }}
           >
             Reply to this thread
+          </button>
+
+          <!-- Mock Images Test Button -->
+          <button
+            class="trigger-mock-button"
+            on:click={triggerMockImages}
+          >
+            🖼️ Trigger Mock Images
           </button>
         </div>
 
@@ -774,6 +850,7 @@
                   on:removeBookmark={handleRemoveBookmark}
                   on:repost={handleRepost}
                   on:loadReplies={handleLoadReplies}
+                  on:mediaClick={handleMediaClick}
                 />
               </div>
             {/each}
@@ -895,13 +972,31 @@
   </div>
 {/if}
 
+{#if showMediaOverlay && currentTweet}
+  <MediaOverlay 
+    isOpen={showMediaOverlay} 
+    on:close={() => showMediaOverlay = false}
+    currentIndex={currentMediaIndex}
+    mediaItems={currentMediaArray}
+    threadData={currentTweet}
+    {isDarkMode}
+  />
+{/if}
+
 <style>
   /* Base styles */
   .thread-detail-container {
     min-height: calc(100vh - 60px);
+    max-height: 100vh;
+    overflow-y: auto;
     padding: 0;
     background-color: var(--light-bg-primary);
     color: var(--light-text-primary);
+  }
+
+  .thread-content {
+    height: 100%;
+    overflow-y: auto;
   }
 
   /* Dark theme overrides - these will apply when dark theme is active */
@@ -1320,6 +1415,33 @@
 
   :global([data-theme="dark"]) .reply-button {
     background-color: var(--color-primary);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Trigger Mock Images Button */
+  .trigger-mock-button {
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e1306c;
+    color: white;
+    border: none;
+    border-radius: 9999px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    font-size: 14px;
+  }
+
+  .trigger-mock-button:hover {
+    transform: translateY(-1px);
+    background-color: #c12d5a;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  :global([data-theme="dark"]) .trigger-mock-button {
+    background-color: #e1306c;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
   }
 </style>

@@ -1018,10 +1018,15 @@
     dispatch("repost", event.detail);
   }
 
-  function showLoginModal() {
-    toastStore.showToast("You need to be logged in to perform this action", "error");
+  // Handle media click to open overlay
+  function handleMediaClick(mediaIndex: number) {
+    dispatch("mediaClick", {
+      tweet: processedTweet,
+      mediaIndex: mediaIndex
+    });
   }
 
+  // Like Reply
   async function handleLikeReply(replyId: any) {
     try {
       if (!checkAuth()) {
@@ -1963,25 +1968,38 @@
                   <!-- Single Media Display -->
                   <div class="tweet-media-single">
                     {#if processedTweet.media[0].type === "image"}
-                      <img
-                        src={processedTweet.media[0].url}
-                        alt={processedTweet.media[0].alt_text || "Media"}
-                        class="tweet-media-img"
-                      />
+                      <button
+                        class="tweet-media-btn"
+                        on:click|stopPropagation={() => handleMediaClick(0)}
+                        aria-label="Open media in overlay"
+                      >
+                        <img
+                          src={processedTweet.media[0].url}
+                          alt={processedTweet.media[0].alt_text || "Media"}
+                          class="tweet-media-img"
+                        />
+                      </button>
                     {:else if processedTweet.media[0].type === "video"}
                       <video
                         src={processedTweet.media[0].url}
                         controls
                         class="tweet-media-video"
+                        on:click|stopPropagation={() => handleMediaClick(0)}
                       >
                         <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
                       </video>
                     {:else}
-                      <img
-                        src={processedTweet.media[0].url}
-                        alt="GIF"
-                        class="tweet-media-img"
-                      />
+                      <button
+                        class="tweet-media-btn"
+                        on:click|stopPropagation={() => handleMediaClick(0)}
+                        aria-label="Open media in overlay"
+                      >
+                        <img
+                          src={processedTweet.media[0].url}
+                          alt="GIF"
+                          class="tweet-media-img"
+                        />
+                      </button>
                     {/if}
                   </div>
                 {:else if processedTweet.media.length > 1}
@@ -1990,28 +2008,41 @@
                     {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
                       <div class="tweet-media-item">
                         {#if media.type === "image"}
-                                                  <img
-                            src={media.url}
-                            alt={media.alt_text || "Media"}
-                            class="tweet-media-img"
-                          />
+                          <button
+                            class="tweet-media-btn"
+                            on:click|stopPropagation={() => handleMediaClick(index)}
+                            aria-label="Open media in overlay"
+                          >
+                            <img
+                              src={media.url}
+                              alt={media.alt_text || "Media"}
+                              class="tweet-media-img"
+                            />
+                          </button>
                         {:else if media.type === "video"}
                           <video
                             src={media.url}
                             controls
                             class="tweet-media-video"
+                            on:click|stopPropagation={() => handleMediaClick(index)}
                           >
                             <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
                           </video>
                         {:else}
-                          <img
-                            src={media.url}
-                            alt="GIF"
-                            class="tweet-media-img"
-                                                      on:error={(e) => {
-                              console.error("GIF failed to load:", media.url);
-                            }}
-                          />
+                          <button
+                            class="tweet-media-btn"
+                            on:click|stopPropagation={() => handleMediaClick(index)}
+                            aria-label="Open media in overlay"
+                          >
+                            <img
+                              src={media.url}
+                              alt="GIF"
+                              class="tweet-media-img"
+                              on:error={(e) => {
+                                console.error("GIF failed to load:", media.url);
+                              }}
+                            />
+                          </button>
                         {/if}
                       </div>
                     {/each}
@@ -2727,11 +2758,10 @@
   :global(.tweet-reply-action-loading) {
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(var(--color-primary-rgb), 0.3);
+    border: 2px solid rgba(var(--color-danger-rgb), 0.3);
     border-radius: 50%;
-    border-top-color: var(--color-primary);
+    border-top-color: var(--color-danger);
     animation: spin 0.8s linear infinite;
-    margin-right: 0.25rem;
   }
 
   :global(.tweet-reply-avatar-placeholder) {
@@ -3301,6 +3331,37 @@
     margin: var(--space-2) 0;
     word-break: break-word;
     line-height: 1.4;
+  }
+
+  /* Media button styles */
+  .tweet-media-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .tweet-media-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .tweet-media-btn:focus {
+    outline: 2px solid #1d9bf0;
+    outline-offset: 2px;
+  }
+
+  .tweet-media-btn .tweet-media-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 </style>
 

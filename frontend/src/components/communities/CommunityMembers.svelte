@@ -49,10 +49,9 @@
 </script>
 
 <div class="members-container">
-  <h2 class="section-title">Members ({members.length})</h2>
-  {#if members.length > 0}
+  <h2 class="section-title">Members ({members.length})</h2>  {#if members.length > 0}
     <div class="members-list">
-      {#each members as member (member.id)}
+      {#each members as member, index (member.id || member.user_id || `member-${index}`)}
         <div class="member-card">
           <UserCard
             user={{
@@ -66,18 +65,21 @@
           />
 
           {#if canManageCommunity}
-            <div class="member-actions">
-              {#if canKickMember(member)}
-                <div on:click|stopPropagation>
+            <div class="member-actions">              {#if canKickMember(member)}
+                <button
+                  type="button"
+                  class="kick-member-button"
+                  on:click|stopPropagation={() => handleKickMember(member.user_id, member.username)}
+                >
                   <Button
                     variant="danger"
                     size="small"
                     icon={UserMinusIcon}
-                    on:click={() => handleKickMember(member.user_id, member.username)}
+                    on:click={() => {}}
                   >
                     Kick
                   </Button>
-                </div>
+                </button>
               {:else if member.role === "owner" || member.role === "admin"}
                 <div class="protected-badge">
                   <ShieldIcon size="16" />
@@ -98,9 +100,8 @@
 
   {#if pendingMembers.length > 0 && canManageCommunity}
     <div class="pending-members-section">
-      <h2 class="section-title">Pending Join Requests ({pendingMembers.length})</h2>
-      <div class="members-grid">
-        {#each pendingMembers as member (member.id)}
+      <h2 class="section-title">Pending Join Requests ({pendingMembers.length})</h2>      <div class="members-grid">
+        {#each pendingMembers as member, index (member.id || member.user_id || `pending-${index}`)}
           <div class="pending-member-card">
             <div class="pending-member-header">
               <div class="user-avatar">
@@ -173,9 +174,15 @@
   .member-card:hover {
     background-color: var(--bg-hover);
   }
-
   .member-actions {
     margin-left: var(--space-2);
+  }
+
+  .kick-member-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
   }
 
   .protected-badge {

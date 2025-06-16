@@ -284,7 +284,7 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	userID := c.Param("id")
+	userID := c.Param("userId")
 
 	if userID == "me" {
 		if authenticatedUserIDStr == "" {

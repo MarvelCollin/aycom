@@ -101,13 +101,14 @@
     communityId?: string;
     title: string;
     description: string;
-    order: number;
-  }
+    order: number;  }
 
   // Make Thread compatible with ITweet
   interface Thread extends ITweet {
     authorId?: string;
     createdAt?: Date;
+    media_url?: string;
+    media_type?: 'image' | 'video';
   }
 
   const logger = createLoggerWithPrefix("CommunityDetail");
@@ -148,7 +149,6 @@
   let pendingMembers: Member[] = [];
   let activeTab = "top"; // 'top', 'latest', 'media', 'about', 'manage'
   let errorMessage = "";
-
   // Add properties to store different thread types
   let topThreads: Thread[] = [];
   let latestThreads: Thread[] = [];
@@ -158,6 +158,11 @@
   let isLoadingMediaThreads = false;
   let topMembers: Member[] = [];
   let isLoadingTopMembers = false;
+
+  // Media pagination
+  let mediaPage = 1;
+  let hasMoreMedia = true;
+  let isLoadingMoreMedia = false;
 
   onMount(async () => {
     if (!communityId) {
@@ -379,11 +384,17 @@
       members = [];
     }
   }
-
   // Process member avatars to use Supabase URLs
   function processMembersAvatars(membersList) {
-    return membersList.map(member => {
+    return membersList.map((member, index) => {
       const processedMember = { ...member };
+
+      // Ensure unique ID - use user_id as primary, fallback to index-based ID
+      if (!processedMember.id && processedMember.user_id) {
+        processedMember.id = processedMember.user_id;
+      } else if (!processedMember.id) {
+        processedMember.id = `member-${index}-${Date.now()}`;
+      }
 
       // Handle different avatar field names
       const avatarUrl = member.avatar_url || member.profile_picture_url || member.avatar || "";
@@ -455,14 +466,13 @@
             console.log("User object fields:", Object.keys(sampleRequest.user));
             console.log("User object username:", sampleRequest.user.username);
           }
-        }
-          // Format users from join requests to match Member structure
-        pendingMembers = pendingResponse.join_requests.map(request => {
+        }          // Format users from join requests to match Member structure
+        pendingMembers = pendingResponse.join_requests.map((request, index) => {
           console.log(`Processing request for user_id: ${request.user_id}, found username: ${request.username || "MISSING"}`);
 
           // The backend now returns real user data, so prioritize that
           const member = {
-            id: request.id || request.user_id || "",
+            id: request.id || request.user_id || `pending-${index}-${Date.now()}`,
             user_id: request.user_id || "",
             // Prioritize real username from backend, fallback only if not available
             username: request.username || `user_${(request.user_id || "").substring(0, 8)}`,
@@ -489,14 +499,13 @@
           console.log("Join request ID (alt):", sampleRequest.id);
           console.log("Join request user_id (alt):", sampleRequest.user_id);
           console.log("Join request username field value (alt):", sampleRequest.username);
-        }
-          // Format users from join requests (alternative response format)
-        pendingMembers = pendingResponse.data.join_requests.map(request => {
+        }          // Format users from join requests (alternative response format)
+        pendingMembers = pendingResponse.data.join_requests.map((request, index) => {
           console.log(`Processing alt request for user_id: ${request.user_id}, found username: ${request.username || "MISSING"}`);
 
           // The backend now returns real user data, so prioritize that
           const member = {
-            id: request.id || request.user_id || "",
+            id: request.id || request.user_id || `pending-alt-${index}-${Date.now()}`,
             user_id: request.user_id || "",
             // Prioritize real username from backend, fallback only if not available
             username: request.username || `user_${(request.user_id || "").substring(0, 8)}`,
@@ -784,25 +793,80 @@
       logger.error("Error loading latest threads:", error);
       isLoadingLatestThreads = false;
     }
-  }
-
-  async function loadMediaThreads() {
+  }  async function loadMediaThreads() {
     try {
       isLoadingMediaThreads = true;
-      // Here you would call an API to get media threads
-      // For now, we'll just filter threads that might contain media
-      // This is just a placeholder - in a real app, you'd check for actual media attachments
-      mediaThreads = [...threads].filter(thread =>
-        thread.content && (
-          thread.content.includes("image") ||
-          thread.content.includes("gif") ||
-          thread.content.includes("video")
-        )
-      );
+      
+      // Reset for initial load
+      mediaPage = 1;
+      hasMoreMedia = true;
+        // Generate mock media content for demonstration
+      const mockMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => ({
+        id: `media-${index + 1}`,
+        content: `Mock media post ${index + 1} with some interesting content about the community. This could be a photo from a recent event, artwork shared by members, or any visual content related to our community discussions.`,
+        timestamp: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), // Random date within last 30 days
+        username: `user${Math.floor(Math.random() * 100)}`,
+        display_name: `Community User ${index + 1}`,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${index}`,
+        likes: Math.floor(Math.random() * 100),
+        comments: Math.floor(Math.random() * 50),
+        reposts: Math.floor(Math.random() * 25),
+        views: Math.floor(Math.random() * 500),
+        media_url: `https://picsum.photos/400/300?random=${index + 1}`,
+        media_type: (Math.random() > 0.7 ? 'video' : 'image') as 'image' | 'video'
+      }));
+
+      mediaThreads = mockMediaItems;
       isLoadingMediaThreads = false;
     } catch (error) {
       logger.error("Error loading media threads:", error);
       isLoadingMediaThreads = false;
+    }
+  }
+
+  async function loadMoreMedia() {
+    if (isLoadingMoreMedia || !hasMoreMedia) return;
+
+    try {
+      isLoadingMoreMedia = true;
+      mediaPage += 1;      // Generate more mock media content
+      const moreMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => {
+        const globalIndex = (mediaPage - 1) * 6 + index + 1;
+        return {
+          id: `media-${globalIndex}`,
+          content: `Mock media post ${globalIndex} with some interesting content about the community. This could be a photo from a recent event, artwork shared by members, or any visual content related to our community discussions.`,
+          timestamp: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+          username: `user${Math.floor(Math.random() * 100)}`,
+          display_name: `Community User ${globalIndex}`,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${globalIndex}`,
+          likes: Math.floor(Math.random() * 100),
+          comments: Math.floor(Math.random() * 50),
+          reposts: Math.floor(Math.random() * 25),
+          views: Math.floor(Math.random() * 500),
+          media_url: `https://picsum.photos/400/300?random=${globalIndex}`,
+          media_type: (Math.random() > 0.7 ? 'video' : 'image') as 'image' | 'video'
+        };
+      });
+
+      mediaThreads = [...mediaThreads, ...moreMediaItems];
+
+      // Stop loading more after a certain number of pages for demo
+      if (mediaPage >= 5) {
+        hasMoreMedia = false;
+      }
+
+      isLoadingMoreMedia = false;
+    } catch (error) {
+      logger.error("Error loading more media:", error);
+      isLoadingMoreMedia = false;
+    }
+  }
+
+  // Scroll handler for infinite scroll
+  function handleMediaScroll(event: Event) {
+    const target = event.target as Element;
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
+      loadMoreMedia();
     }
   }
 
@@ -981,26 +1045,97 @@
             />
           {:else}
             <p class="empty-message">No recent posts to display.</p>
-          {/if}
-
-        {:else if activeTab === "media"}
+          {/if}        {:else if activeTab === "media"}
           <h2 class="section-title">Media</h2>
           {#if isLoadingMediaThreads}
             <div class="loading-indicator"><Spinner size="medium" /></div>
           {:else if mediaThreads.length > 0}
-            <div class="media-grid">
-              {#each mediaThreads as thread}
-                <div class="media-item" on:click={() => handleThreadClick({ detail: thread })}>
-                  <!-- This is a placeholder for media content - in a real app, you'd display actual media -->
-                  <div class="media-preview">
-                    <ImageIcon size="48" />
+            <div class="media-posts-container" on:scroll={handleMediaScroll}>
+              {#each mediaThreads as mediaItem, index (mediaItem.id || `media-${index}`)}
+                <div class="media-post-card">
+                  <div class="media-post-header">
+                    <div class="user-avatar">
+                      <img src={mediaItem.avatar} alt={mediaItem.display_name} />
+                    </div>
+                    <div class="user-info">
+                      <div class="user-name">{mediaItem.display_name}</div>
+                      <div class="user-handle">@{mediaItem.username}</div>                      <div class="post-time">
+                        {mediaItem.timestamp ? new Date(mediaItem.timestamp).toLocaleDateString() : 'Unknown date'}
+                      </div>
+                    </div>
                   </div>
-                  <div class="media-info">
-                    <span class="media-author">{thread.username || "User"}</span>
-                    <span class="media-date">{thread.timestamp ? new Date(thread.timestamp).toLocaleDateString() : "Unknown date"}</span>
+                  
+                  <div class="media-post-content">
+                    <p>{mediaItem.content}</p>
+                    <div class="media-container">
+                      {#if mediaItem.media_type === 'video'}
+                        <div class="video-placeholder">
+                          <img src={mediaItem.media_url} alt="Video thumbnail" />
+                          <div class="video-play-button">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="12" fill="rgba(0,0,0,0.7)"/>
+                              <polygon points="10,8 16,12 10,16" fill="white"/>
+                            </svg>
+                          </div>
+                        </div>
+                      {:else}
+                        <img src={mediaItem.media_url} alt="Post media" class="media-image" />
+                      {/if}
+                    </div>
+                  </div>
+                  
+                  <div class="media-post-actions">
+                    <div class="action-button">
+                      <MessageSquareIcon size="16" />
+                      <span>{mediaItem.comments}</span>
+                    </div>
+                    <div class="action-button">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M23 7L16 12L23 17V7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M14 5L6 12L14 19V5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <span>{mediaItem.reposts}</span>
+                    </div>
+                    <div class="action-button">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20.84 4.61A5.5 5.5 0 0 0 16.5 2.03A5.44 5.44 0 0 0 12 4.17A5.44 5.44 0 0 0 7.5 2.03A5.5 5.5 0 0 0 3.16 4.61C1.8 5.95 1 7.78 1 9.72C1 13.91 8.5 20.5 12 22.39C15.5 20.5 23 13.91 23 9.72C23 7.78 22.2 5.95 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <span>{mediaItem.likes}</span>
+                    </div>
+                    <div class="action-button">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="2"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="currentColor" stroke-width="2"/>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="currentColor" stroke-width="2"/>
+                      </svg>
+                      <span>{mediaItem.views}</span>
+                    </div>
                   </div>
                 </div>
               {/each}
+              
+              {#if isLoadingMoreMedia}
+                <div class="loading-indicator">
+                  <Spinner size="medium" />
+                  <p>Loading more media...</p>
+                </div>
+              {/if}
+              
+              {#if hasMoreMedia && !isLoadingMoreMedia && mediaThreads.length > 0}
+                <div class="load-more-container">
+                  <Button variant="outlined" on:click={loadMoreMedia}>
+                    Load More Media
+                  </Button>
+                </div>
+              {/if}
+              
+              {#if !hasMoreMedia && mediaThreads.length > 0}
+                <div class="end-of-content">
+                  <p>You've reached the end of the media content!</p>
+                </div>
+              {/if}
             </div>
           {:else}
             <p class="empty-message">No media content to display.</p>
@@ -1015,7 +1150,7 @@
             {members}
             {pendingMembers}
             canManageCommunity={canManageCommunity()}
-            currentUserId={authState.user_id}
+            currentUserId={authState.user_id || ""}
             on:approveJoinRequest={(e) => handleApproveJoinRequest(e.detail)}
             on:rejectJoinRequest={(e) => handleRejectJoinRequest(e.detail)}
             on:kickMember={(e) => handleKickMember(e.detail)}
@@ -1226,54 +1361,141 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-  }
-
-  .media-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+  }  /* New media posts styles */
+  .media-posts-container {
+    display: flex;
+    flex-direction: column;
     gap: var(--space-4);
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: var(--space-2);
   }
 
-  .media-item {
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-    background-color: var(--bg-secondary);
-    aspect-ratio: 1;
+  .media-post-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    transition: box-shadow 0.2s ease;
   }
 
-  .media-item:hover {
-    transform: scale(1.02);
+  .media-post-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
-  .media-preview {
-    width: 100%;
-    height: 80%;
+  :global(.dark) .media-post-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .media-post-header {
     display: flex;
     align-items: center;
-    justify-content: center;
-    background-color: var(--bg-tertiary);
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
   }
 
-  .media-info {
-    padding: var(--space-2);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .media-author {
-    font-weight: var(--font-weight-medium);
-    font-size: var(--font-size-sm);
-    white-space: nowrap;
+  .media-post-header .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .media-date {
-    font-size: var(--font-size-xs);
+  .media-post-header .user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .media-post-header .user-info {
+    flex: 1;
+  }
+
+  .media-post-header .user-name {
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+  }
+
+  .media-post-header .user-handle {
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
+  }
+
+  .media-post-header .post-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+  }
+
+  .media-post-content p {
+    margin-bottom: var(--space-3);
+    line-height: 1.5;
+    color: var(--text-primary);
+  }
+
+  .media-container {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: var(--space-3);
+  }
+
+  .media-image {
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .video-placeholder {
+    position: relative;
+    width: 100%;
+  }
+
+  .video-placeholder img {
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .video-play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+
+  .video-play-button:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+
+  .media-post-actions {
+    display: flex;
+    justify-content: space-around;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-color);
+  }
+
+  .action-button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .action-button:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
   }
 
   .loading-indicator {
@@ -1286,18 +1508,103 @@
     text-align: center;
     color: var(--text-secondary);
     padding: var(--space-6);
+  }  /* Responsive adjustments for the media posts */
+  @media (max-width: 768px) {
+
+    .media-post-card {
+      padding: var(--space-3);
+    }
+
+    .media-post-header {
+      gap: var(--space-2);
+    }
+
+    .media-post-actions {
+      gap: var(--space-1);
+    }
+
+    .action-button {
+      padding: var(--space-1);
+      font-size: var(--font-size-xs);
+    }
+  }
+  .action-button:hover {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
   }
 
-  /* Responsive adjustments for the media grid */
+  .load-more-container {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-4);
+  }
+
+  .end-of-content {
+    text-align: center;
+    padding: var(--space-4);
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .loading-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    gap: var(--space-2);
+  }
+
+  .loading-indicator p {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .empty-message {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: var(--space-6);
+  }
+
+  /* Responsive adjustments for the media posts */
   @media (max-width: 768px) {
-    .media-grid {
-      grid-template-columns: repeat(2, 1fr);
+    .media-post-card {
+      padding: var(--space-3);
+    }
+
+    .media-post-header {
+      gap: var(--space-2);
+    }
+
+    .media-post-actions {
+      gap: var(--space-1);
+    }
+
+    .action-button {
+      padding: var(--space-1);
+      font-size: var(--font-size-xs);
+    }
+
+    .media-posts-container {
+      max-height: 60vh;
     }
   }
 
   @media (max-width: 480px) {
-    .media-grid {
-      grid-template-columns: 1fr;
+    .media-post-header .user-avatar {
+      width: 32px;
+      height: 32px;
+    }
+
+    .media-post-actions {
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+
+    .action-button {
+      flex: 1;
+      justify-content: center;
+      min-width: 0;
     }
   }
 </style>
