@@ -5,12 +5,12 @@ import (
 	"log"
 	"time"
 
-	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/repository"
-
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/repository"
 )
 
 type Thread = model.Thread
@@ -195,7 +195,6 @@ func (s *interactionService) RepostThread(ctx context.Context, userID, threadID 
 		return status.Error(codes.InvalidArgument, "User ID and Thread ID are required")
 	}
 
-	// Check if user has already reposted this thread
 	hasReposted, err := s.interactionRepo.IsThreadRepostedByUser(userID, threadID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "Failed to check if user has reposted thread: %v", err)
@@ -215,23 +214,19 @@ func (s *interactionService) RepostThread(ctx context.Context, userID, threadID 
 		return status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
 	}
 
-	// Verify the thread exists
 	_, err = s.threadRepo.FindThreadByID(threadID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "Failed to find original thread: %v", err)
 	}
 
-	// Create new thread ID for the repost
 	newThreadID := uuid.New()
 
-	// Construct repost content with attribution
 	content := ""
 	if repostText != nil && *repostText != "" {
-		// If repost has text, use it as content
+
 		content = *repostText
 	}
 
-	// Create a new thread representing the repost
 	newThread := &model.Thread{
 		ThreadID:        newThreadID,
 		UserID:          userUUID,
@@ -240,7 +235,7 @@ func (s *interactionService) RepostThread(ctx context.Context, userID, threadID 
 		IsAdvertisement: false,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
-		// Set repost metadata
+
 		OriginalThreadID: &threadUUID,
 		IsRepost:         true,
 	}
@@ -249,7 +244,6 @@ func (s *interactionService) RepostThread(ctx context.Context, userID, threadID 
 		return status.Errorf(codes.Internal, "Failed to create repost thread: %v", err)
 	}
 
-	// Also create an entry in the reposts table for tracking purposes
 	repost := &model.Repost{
 		UserID:      userUUID,
 		ThreadID:    threadUUID,
@@ -258,8 +252,7 @@ func (s *interactionService) RepostThread(ctx context.Context, userID, threadID 
 	}
 
 	if err := s.interactionRepo.RepostThread(repost); err != nil {
-		// If we fail to create the repost record but already created the thread,
-		// we should log the error but still consider the operation successful
+
 		log.Printf("Warning: Created repost thread %s but failed to create repost record: %v", newThreadID, err)
 	}
 

@@ -22,14 +22,13 @@ func NewCommunitySeeder(db *gorm.DB) *CommunitySeeder {
 func (s *CommunitySeeder) SeedAll() error {
 	log.Println("Starting community seeder...")
 
-	// Get current user IDs from the system
 	var userIDs []uuid.UUID
 	if err := s.fetchActiveUserIDs(&userIDs); err != nil {
 		log.Printf("Warning: Could not fetch user IDs: %v. Using default IDs.", err)
-		// Use some default IDs if we can't fetch real ones
+
 		userIDs = []uuid.UUID{
-			uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"), // Current user ID from logs
-			uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"), // Another ID seen in logs
+			uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"), 
+			uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"), 
 		}
 	}
 
@@ -57,15 +56,13 @@ func (s *CommunitySeeder) SeedAll() error {
 	return nil
 }
 
-// Fetch active user IDs from the user service database via a postgres connection
 func (s *CommunitySeeder) fetchActiveUserIDs(userIDs *[]uuid.UUID) error {
-	// Create a temporary struct to hold user IDs
+
 	type UserID struct {
 		ID uuid.UUID
 	}
 	var users []UserID
 
-	// Try to get user IDs from our own DB first (from existing members or pending requests)
 	if err := s.db.Raw("SELECT DISTINCT user_id as id FROM community_members WHERE deleted_at IS NULL LIMIT 10").Scan(&users).Error; err != nil {
 		log.Printf("Failed to fetch user IDs from community members: %v", err)
 	}
@@ -76,7 +73,6 @@ func (s *CommunitySeeder) fetchActiveUserIDs(userIDs *[]uuid.UUID) error {
 		}
 	}
 
-	// If we found some, use them
 	if len(users) > 0 {
 		for _, user := range users {
 			*userIDs = append(*userIDs, user.ID)
@@ -84,7 +80,6 @@ func (s *CommunitySeeder) fetchActiveUserIDs(userIDs *[]uuid.UUID) error {
 		return nil
 	}
 
-	// Otherwise, return an error
 	return fmt.Errorf("no user IDs found in database")
 }
 
@@ -96,7 +91,6 @@ func (s *CommunitySeeder) SeedCommunities(userIDs []uuid.UUID) error {
 		return nil
 	}
 
-	// Use the first user ID for creating communities
 	creatorID := userIDs[0]
 	log.Printf("Using creator ID for communities: %s", creatorID)
 
@@ -158,12 +152,12 @@ func (s *CommunitySeeder) SeedCommunities(userIDs []uuid.UUID) error {
 }
 
 func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
-	// First check if there are already community members
+
 	var count int64
 	s.db.Table("community_members").Count(&count)
 	if count > 0 {
 		log.Println("Community members already exist, truncating and reseeding")
-		// Remove existing records to start fresh
+
 		if err := s.db.Exec("DELETE FROM community_members").Error; err != nil {
 			log.Printf("Warning: Failed to delete existing members: %v", err)
 		}
@@ -196,7 +190,6 @@ func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
 
 	members := []CommunityMember{}
 
-	// First, add the creator as admin for each community
 	for _, community := range communities {
 		members = append(members, CommunityMember{
 			CommunityID: community.CommunityID,
@@ -209,9 +202,8 @@ func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
 		log.Printf("Added admin member for community %s: %s", community.Name, community.CreatorID)
 	}
 
-	// Then add other users as members to some communities
 	for _, userID := range userIDs {
-		// Skip if this is the creator (already added as admin)
+
 		isCreator := false
 		for _, community := range communities {
 			if community.CreatorID == userID {
@@ -224,7 +216,6 @@ func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
 			continue
 		}
 
-		// Add this user as a member to the first community
 		if len(communities) > 0 {
 			members = append(members, CommunityMember{
 				CommunityID: communities[0].CommunityID,
@@ -237,7 +228,6 @@ func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
 			log.Printf("Added regular member for community %s: %s", communities[0].Name, userID)
 		}
 
-		// If there's more than one community, add them as a moderator to the second
 		if len(communities) > 1 {
 			members = append(members, CommunityMember{
 				CommunityID: communities[1].CommunityID,
@@ -265,24 +255,22 @@ func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
 }
 
 func (s *CommunitySeeder) SeedJoinRequests(userIDs []uuid.UUID) error {
-	// First check if there are already join requests
+
 	var count int64
 	s.db.Table("community_join_requests").Count(&count)
 	if count > 0 {
 		log.Println("Community join requests already exist, truncating and reseeding")
-		// Remove existing records to start fresh
+
 		if err := s.db.Exec("DELETE FROM community_join_requests").Error; err != nil {
 			log.Printf("Warning: Failed to delete existing join requests: %v", err)
 		}
 	}
 
-	// If we don't have enough users, return
 	if len(userIDs) < 2 {
 		log.Println("Not enough users to create join requests")
 		return nil
 	}
 
-	// Get communities that the second user isn't already a member of
 	var availableCommunities []struct {
 		CommunityID uuid.UUID
 		Name        string
@@ -322,7 +310,6 @@ func (s *CommunitySeeder) SeedJoinRequests(userIDs []uuid.UUID) error {
 
 	requests := []CommunityJoinRequest{}
 
-	// Create a pending request for the second user
 	for _, community := range availableCommunities {
 		requests = append(requests, CommunityJoinRequest{
 			RequestID:   uuid.New(),

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
 )
 
 func CheckUserDataExists(db *gorm.DB) bool {
@@ -422,7 +422,6 @@ func SeedDatabase(db *gorm.DB) error {
 		return result.Error
 	}
 
-	// Remove mock media entries
 	media := []model.Media{}
 
 	result = db.Create(&media)

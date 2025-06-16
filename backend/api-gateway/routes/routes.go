@@ -90,7 +90,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	v1.OPTIONS("/threads", CORSPreflightHandler())
 	v1.OPTIONS("/threads/*path", CORSPreflightHandler())
 
-	// Add thread related endpoints
 	threads := v1.Group("/threads")
 	threads.Use(middleware.JWTAuth(jwtSecret))
 	{
@@ -109,7 +108,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.DELETE("/:id/pin", handlers.UnpinThread)
 	}
 
-	// Public thread routes with optional authentication
 	publicThreads := v1.Group("/threads")
 	publicThreads.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
@@ -118,10 +116,13 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicThreads.GET("/trending", handlers.GetTrends)
 		publicThreads.GET("/following", handlers.GetThreadsFromFollowing)
 		publicThreads.GET("/hashtag/:hashtag", handlers.GetThreadsByHashtag)
+		publicThreads.GET("/user/:userId", handlers.GetUserThreads)
+		publicThreads.GET("/user/:userId/replies", handlers.GetUserReplies)
+		publicThreads.GET("/user/:userId/likes", handlers.GetUserLikedThreads)
+		publicThreads.GET("/user/:userId/media", handlers.GetUserMediaThreads)
 		publicThreads.GET("/:id", handlers.GetThread)
 	}
 
-	// Public search routes with optional authentication
 	search := v1.Group("/search")
 	search.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
@@ -143,30 +144,28 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1.GET("/communities/search", handlers.OldSearchCommunities)
 
-	// Create a public communities group with optional JWT auth for user-specific endpoints
 	publicCommunities := v1.Group("/communities")
 	publicCommunities.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
-		// Use the same handler for all endpoints with different filter parameters
+
 		publicCommunities.GET("/user/:userId/joined", func(c *gin.Context) {
-			// Append filter=joined to the query
+
 			c.Request.URL.RawQuery += "&filter=joined"
 			handlers.ListCommunities(c)
 		})
 
 		publicCommunities.GET("/user/:userId/pending", func(c *gin.Context) {
-			// Append filter=pending to the query
+
 			c.Request.URL.RawQuery += "&filter=pending"
 			handlers.ListCommunities(c)
 		})
 
 		publicCommunities.GET("/user/:userId/discover", func(c *gin.Context) {
-			// Append filter=discover to the query
+
 			c.Request.URL.RawQuery += "&filter=discover"
 			handlers.ListCommunities(c)
 		})
 
-		// Basic listing endpoint
 		publicCommunities.GET("", handlers.ListCommunities)
 		publicCommunities.GET("/:id", handlers.GetCommunityByID)
 	}
@@ -211,7 +210,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		replies.DELETE("/:id/pin", handlers.UnpinReply)
 	}
 
-	// Add a public version of replies endpoint with optional authentication
 	publicReplies := v1.Group("/replies")
 	publicReplies.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
@@ -281,7 +279,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		notifications.DELETE("/:id", handlers.DeleteNotification)
 	}
 
-	// WebSocket endpoint without JWT middleware (handles auth internally)
 	v1.GET("/notifications/ws", handlers.HandleNotificationsWebSocket)
 
 	bookmarks := v1.Group("/bookmarks")

@@ -2,9 +2,6 @@ package handlers
 
 import (
 	"aycom/backend/proto/thread"
-	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/repository"
-	"aycom/backend/services/thread/service"
 	"context"
 	"log"
 	"reflect"
@@ -15,6 +12,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/repository"
+	"aycom/backend/services/thread/service"
 )
 
 type ThreadHandler struct {
@@ -41,8 +42,6 @@ func NewThreadHandler(
 	threadRepo repository.ThreadRepository,
 	mediaRepo repository.MediaRepository,
 ) *ThreadHandler {
-	// TODO: The UserRelationService should be created in main.go and injected into ReplyService
-	// For proper implementation of reply permissions based on who_can_reply setting
 
 	return &ThreadHandler{
 		threadService:      threadService,
@@ -113,7 +112,6 @@ func (h *ThreadHandler) GetThreadById(ctx context.Context, req *thread.GetThread
 func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThreadsByUserRequest) (*thread.ThreadsResponse, error) {
 	var finalError error
 
-	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC RECOVERED in GetThreadsByUser: %v", r)
@@ -131,7 +129,6 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 
 	log.Printf("GetThreadsByUser: Fetching threads for user %s, page %d, limit %d", req.UserId, req.Page, req.Limit)
 
-	// Extract the requesting user ID from context metadata if available
 	var requestingUserID string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		userIDs := md.Get("user_id")
@@ -141,7 +138,6 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 		}
 	}
 
-	// Setup default pagination values if not provided
 	if req.Page <= 0 {
 		req.Page = 1
 	}
@@ -152,7 +148,7 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 	threads, err := h.threadService.GetThreadsByUserID(ctx, req.UserId, int(req.Page), int(req.Limit))
 	if err != nil {
 		log.Printf("GetThreadsByUser: Error fetching threads: %v", err)
-		// Return empty successful response instead of error for "not found" cases
+
 		if status.Code(err) == codes.NotFound {
 			log.Printf("GetThreadsByUser: No threads found for user %s", req.UserId)
 			return &thread.ThreadsResponse{
@@ -165,7 +161,6 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 
 	log.Printf("GetThreadsByUser: Found %d threads for user %s", len(threads), req.UserId)
 
-	// If no threads found, return empty response instead of error
 	if len(threads) == 0 {
 		log.Printf("GetThreadsByUser: No threads found for user %s", req.UserId)
 		return &thread.ThreadsResponse{
@@ -176,12 +171,11 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threads))
 	for _, t := range threads {
-		// Skip any null threads
+
 		if t == nil {
 			continue
 		}
 
-		// Wrap conversion in try-catch to prevent individual thread errors from breaking the entire response
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -192,17 +186,15 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 			response, err := h.convertThreadToResponse(ctx, t)
 			if err != nil {
 				log.Printf("GetThreadsByUser: Error converting thread %s: %v", t.ThreadID.String(), err)
-				// Continue processing other threads instead of failing completely
+
 				return
 			}
 
-			// Set bookmarked status if we have a requesting user ID
 			if requestingUserID != "" && h.interactionService != nil {
-				// Use a separate context with timeout for this operation
+
 				interactionCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 
-				// Check if user bookmarked the thread
 				hasBookmarked, err := h.interactionService.HasUserBookmarked(interactionCtx, requestingUserID, t.ThreadID.String())
 				if err != nil {
 					log.Printf("WARNING: Failed to check if user %s bookmarked thread %s: %v",
@@ -237,10 +229,9 @@ func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *thread.GetAllThr
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve threads: %v", err)
 	}
 
-	// Get total count for pagination
 	totalCount, err := h.threadService.GetTotalThreadCount(ctx)
 	if err != nil {
-		// Log the error but continue with the threads we have
+
 		log.Printf("WARNING: Failed to get total thread count: %v", err)
 		totalCount = int64(len(threads))
 	}
@@ -249,7 +240,7 @@ func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *thread.GetAllThr
 	for _, t := range threads {
 		response, err := h.convertThreadToResponse(ctx, t)
 		if err != nil {
-			// Log the error but continue with other threads
+
 			log.Printf("Error converting thread %s: %v", t.ThreadID.String(), err)
 			continue
 		}
@@ -476,7 +467,6 @@ func (h *ThreadHandler) CreatePoll(ctx context.Context, req *thread.CreatePollRe
 		return nil, status.Errorf(codes.Internal, "Failed to create poll: %v", err)
 	}
 
-	// Create poll options for response
 	pollOptions := make([]*thread.PollOption, 0, len(options))
 	for _, opt := range options {
 		pollOptions = append(pollOptions, &thread.PollOption{
@@ -485,7 +475,6 @@ func (h *ThreadHandler) CreatePoll(ctx context.Context, req *thread.CreatePollRe
 		})
 	}
 
-	// Create poll object
 	protoPoll := &thread.Poll{
 		Id:          poll.PollID.String(),
 		Question:    poll.Question,
@@ -516,7 +505,6 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *thread.GetPollR
 		return nil, status.Error(codes.InvalidArgument, "Poll ID is required")
 	}
 
-	// Extract requesting user ID if available
 	var userID *string = nil
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		ids := md.Get("user_id")
@@ -531,7 +519,6 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *thread.GetPollR
 		return nil, status.Errorf(codes.Internal, "Failed to get poll results: %v", err)
 	}
 
-	// Convert options to protobuf format
 	optionResults := make([]*thread.PollOptionResult, 0, len(results.Options))
 	for _, opt := range results.Options {
 		optionResults = append(optionResults, &thread.PollOptionResult{
@@ -542,7 +529,6 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *thread.GetPollR
 		})
 	}
 
-	// Set user's voted option if available
 	var userVoteOptionId *string = nil
 	if results.HasUserVoted && results.UserVotedOption != nil {
 		voted := results.UserVotedOption.String()
@@ -768,7 +754,6 @@ func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.G
 
 	var finalError error
 
-	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC RECOVERED in GetLikedThreadsByUser: %v", r)
@@ -789,7 +774,6 @@ func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.G
 		limit = int(req.Limit)
 	}
 
-	// Extract the requesting user ID from context metadata if available
 	var requestingUserID string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		userIDs := md.Get("user_id")
@@ -809,7 +793,7 @@ func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.G
 
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threadIDs))
 	for _, id := range threadIDs {
-		// Wrap in a function to handle potential panics per thread
+
 		func(threadID string) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -829,16 +813,13 @@ func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.G
 				return
 			}
 
-			// Set liked status to true since these are liked threads
 			response.LikedByUser = true
 
-			// Check bookmark status if we have a requesting user ID
 			if requestingUserID != "" && h.interactionService != nil {
-				// Use a separate context with timeout for this operation
+
 				interactionCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 
-				// Check if user bookmarked the thread
 				hasBookmarked, err := h.interactionService.HasUserBookmarked(interactionCtx, requestingUserID, threadID)
 				if err != nil {
 					log.Printf("WARNING: Failed to check if user %s bookmarked thread %s: %v",
@@ -909,7 +890,6 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 
 	var finalError error
 
-	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC RECOVERED in GetBookmarksByUser: %v", r)
@@ -922,7 +902,6 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Extract the requesting user ID from context metadata if available
 	var requestingUserID string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		userIDs := md.Get("user_id")
@@ -932,7 +911,6 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 		}
 	}
 
-	// Set default pagination values if not provided
 	page := int(req.Page)
 	limit := int(req.Limit)
 	if page <= 0 {
@@ -942,14 +920,12 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 		limit = 20
 	}
 
-	// Get bookmarks using the interaction service
 	threads, count, err := h.interactionService.GetUserBookmarks(ctx, req.UserId, page, limit)
 	if err != nil {
 		log.Printf("ERROR: Failed to get user bookmarks: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to get bookmarks: %v", err)
 	}
 
-	// If no bookmarks found, return empty response instead of error
 	if len(threads) == 0 {
 		log.Printf("GetBookmarksByUser: No bookmarks found for user %s", req.UserId)
 		return &thread.ThreadsResponse{
@@ -958,15 +934,13 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 		}, nil
 	}
 
-	// Convert thread models to thread responses
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threads))
 	for _, t := range threads {
-		// Skip any null threads
+
 		if t == nil {
 			continue
 		}
 
-		// Wrap conversion in try-catch to prevent individual thread errors from breaking the entire response
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -980,16 +954,13 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 				return
 			}
 
-			// Always set the bookmark status to true since these are from bookmarks
 			threadResp.BookmarkedByUser = true
 
-			// Check if user liked the thread
 			if requestingUserID != "" && h.interactionService != nil {
-				// Use a separate context with timeout for this operation
+
 				interactionCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 
-				// Check if user liked the thread
 				hasLiked, err := h.interactionService.HasUserLikedThread(interactionCtx, requestingUserID, t.ThreadID.String())
 				if err != nil {
 					log.Printf("WARNING: Failed to check if user %s liked thread %s: %v",
@@ -1000,7 +971,6 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 						t.ThreadID.String(), requestingUserID, hasLiked)
 				}
 
-				// Check if user reposted the thread
 				hasReposted, err := h.interactionService.HasUserReposted(interactionCtx, requestingUserID, t.ThreadID.String())
 				if err != nil {
 					log.Printf("WARNING: Failed to check if user %s reposted thread %s: %v",
@@ -1027,7 +997,7 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 }
 
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {
-	// Check for nil thread
+
 	if threadModel == nil {
 		log.Printf("ERROR: Nil thread model passed to convertThreadToResponse")
 		return nil, status.Errorf(codes.Internal, "Thread model is nil")
@@ -1035,7 +1005,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 
 	log.Printf("Converting thread %s to response", threadModel.ThreadID.String())
 
-	// Extract user ID from context if available
 	var requestingUserID string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		userIDs := md.Get("user_id")
@@ -1044,16 +1013,14 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		}
 	}
 
-	// Default values in case user data cannot be fetched
 	userName := "Unknown User"
 	userDisplayName := "Unknown"
 	profilePictureURL := ""
 
-	// Try to get user data if possible
 	if h.userClient != nil {
 		userData, err := h.userClient.GetUserById(ctx, threadModel.UserID.String())
 		if err != nil {
-			// Log error but continue with default values
+
 			log.Printf("WARNING: Failed to get user data for thread %s: %v", threadModel.ThreadID, err)
 		} else if userData != nil {
 			userName = userData.Username
@@ -1062,7 +1029,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		}
 	}
 
-	// Create user object for the response
 	user := &thread.User{
 		Id:                threadModel.UserID.String(),
 		Username:          userName,
@@ -1071,7 +1037,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		IsVerified:        false,
 	}
 
-	// Create thread protobuf object with required fields
 	protoThread := &thread.Thread{
 		Id:        threadModel.ThreadID.String(),
 		UserId:    threadModel.UserID.String(),
@@ -1080,11 +1045,9 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		UpdatedAt: timestamppb.New(threadModel.UpdatedAt),
 	}
 
-	// Handle optional IsPinned field as a pointer type
 	isPinned := threadModel.IsPinned
 	protoThread.IsPinned = &isPinned
 
-	// Get media for the thread
 	mediaList := make([]*thread.Media, 0)
 	if h.mediaRepo != nil {
 		threadID := threadModel.ThreadID.String()
@@ -1101,14 +1064,13 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 	}
 	protoThread.Media = mediaList
 
-	// Check for poll associated with this thread
 	var pollResponse *thread.PollResponse = nil
 	if h.pollService != nil {
 		threadID := threadModel.ThreadID.String()
 		poll, options, err := h.pollService.GetPollByThreadID(ctx, threadID)
 
 		if err == nil && poll != nil && options != nil && len(options) > 0 {
-			// Create poll options
+
 			pollOptions := make([]*thread.PollOption, 0, len(options))
 			for _, opt := range options {
 				pollOptions = append(pollOptions, &thread.PollOption{
@@ -1117,7 +1079,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 				})
 			}
 
-			// Create poll object
 			protoPoll := &thread.Poll{
 				Id:          poll.PollID.String(),
 				Question:    poll.Question,
@@ -1126,66 +1087,57 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 				IsAnonymous: poll.WhoCanVote == "anonymous",
 			}
 
-			// Add to response
 			pollResponse = &thread.PollResponse{
 				Poll: protoPoll,
 			}
 		}
 	}
 
-	// Get interaction counts
 	likesCount := int64(0)
 	repliesCount := int64(0)
 	repostsCount := int64(0)
 	bookmarkCount := int64(0)
 
 	if h.interactionRepo != nil {
-		// Get like count
+
 		lCount, err := h.interactionRepo.CountThreadLikes(threadModel.ThreadID.String())
 		if err == nil {
 			likesCount = lCount
 		}
 
-		// Get repost count
 		rCount, err := h.interactionRepo.CountThreadReposts(threadModel.ThreadID.String())
 		if err == nil {
 			repostsCount = rCount
 		}
 
-		// Get bookmark count
 		bCount, err := h.interactionRepo.CountThreadBookmarks(threadModel.ThreadID.String())
 		if err == nil {
 			bookmarkCount = bCount
 		}
 	}
 
-	// Create thread response
 	response := &thread.ThreadResponse{
 		Thread:       protoThread,
 		User:         user,
 		LikesCount:   likesCount,
 		RepliesCount: repliesCount,
 		RepostsCount: repostsCount,
-		// Set bookmark count using field name that exists in the generated code
-		// BookmarkCount was renamed in the generated code but remains in the proto definition
+
 		LikedByUser:      false,
 		RepostedByUser:   false,
 		BookmarkedByUser: false,
 		Poll:             pollResponse,
 	}
 
-	// Set bookmark count separately to handle potential field name differences
 	if field := reflect.ValueOf(response).Elem().FieldByName("BookmarkCount"); field.IsValid() && field.CanSet() {
 		field.SetInt(bookmarkCount)
 	}
 
-	// Check user interaction status if user ID is in context and interaction service is available
 	if requestingUserID != "" && h.interactionService != nil {
-		// Use a separate context with timeout for these operations
+
 		interactionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
-		// Check if user liked the thread
 		hasLiked, err := h.interactionService.HasUserLikedThread(interactionCtx, requestingUserID, threadModel.ThreadID.String())
 		if err != nil {
 			log.Printf("WARNING: Failed to check if user %s liked thread %s: %v",
@@ -1194,7 +1146,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 			response.LikedByUser = hasLiked
 		}
 
-		// Check if user reposted the thread
 		hasReposted, err := h.interactionService.HasUserReposted(interactionCtx, requestingUserID, threadModel.ThreadID.String())
 		if err != nil {
 			log.Printf("WARNING: Failed to check if user %s reposted thread %s: %v",
@@ -1203,7 +1154,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 			response.RepostedByUser = hasReposted
 		}
 
-		// Check if user bookmarked the thread
 		hasBookmarked, err := h.interactionService.HasUserBookmarked(interactionCtx, requestingUserID, threadModel.ThreadID.String())
 		if err != nil {
 			log.Printf("WARNING: Failed to check if user %s bookmarked thread %s: %v",
@@ -1248,7 +1198,6 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 			response.BookmarkCount = bookmarkCount
 		}
 
-		// Count replies to this reply
 		repliesCount, err := h.replyService.CountRepliesByParentID(ctx, replyID)
 		if err == nil {
 			response.RepliesCount = repliesCount
@@ -1293,15 +1242,13 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 		}
 	}
 
-	// Add parent information if this is a reply to another reply
 	if reply.ParentReplyID != nil && h.replyService != nil {
 		parentReply, err := h.replyService.GetReplyByID(ctx, reply.ParentReplyID.String())
 		if err == nil && parentReply != nil {
-			// Add parent content
+
 			parentContent := parentReply.Content
 			response.ParentContent = &parentContent
 
-			// Get parent user information
 			if h.userClient != nil {
 				parentUserInfo, err := h.userClient.GetUserById(ctx, parentReply.UserID.String())
 				if err == nil && parentUserInfo != nil {

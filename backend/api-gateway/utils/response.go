@@ -18,11 +18,10 @@ type ErrorDetails struct {
 	Message string `json:"message"`
 }
 
-// ensureCORSHeaders ensures CORS headers are set for the response
 func ensureCORSHeaders(c *gin.Context) {
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
-		origin = "http://localhost:3000" // Default origin for frontend
+		origin = "http://localhost:3000" 
 	}
 
 	c.Header("Access-Control-Allow-Origin", origin)
@@ -32,13 +31,11 @@ func ensureCORSHeaders(c *gin.Context) {
 }
 
 func SendErrorResponse(c *gin.Context, status int, code, message string) {
-	// First ensure CORS headers are set
+
 	ensureCORSHeaders(c)
 
-	// Log the error for debugging
 	log.Printf("Sending error response: Status=%d, Code=%s, Message=%s", status, code, message)
 
-	// Set content type and send response
 	c.Header("Content-Type", "application/json")
 	c.JSON(status, ErrorResponse{
 		Success: false,
@@ -50,10 +47,9 @@ func SendErrorResponse(c *gin.Context, status int, code, message string) {
 }
 
 func SendValidationErrorResponse(c *gin.Context, fieldErrors map[string]string) {
-	// First ensure CORS headers are set
+
 	ensureCORSHeaders(c)
 
-	// Log the validation errors
 	log.Printf("Validation error: %v", fieldErrors)
 
 	response := gin.H{
@@ -71,7 +67,7 @@ func SendValidationErrorResponse(c *gin.Context, fieldErrors map[string]string) 
 }
 
 func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
-	// First ensure CORS headers are set
+
 	ensureCORSHeaders(c)
 
 	c.Header("Content-Type", "application/json")
@@ -81,19 +77,17 @@ func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
 	})
 }
 
-// SendDirectSuccessResponse sends a success response without wrapping data in another layer
 func SendDirectSuccessResponse(c *gin.Context, status int, data interface{}) {
-	// First ensure CORS headers are set
+
 	ensureCORSHeaders(c)
 
 	c.Header("Content-Type", "application/json")
 
-	// Add success field to data if it's a map
 	if dataMap, ok := data.(gin.H); ok {
 		dataMap["success"] = true
 		c.JSON(status, dataMap)
 	} else {
-		// If data is not a map, wrap it with success field
+
 		c.JSON(status, gin.H{
 			"success": true,
 			"data":    data,
@@ -123,7 +117,7 @@ func CreatePaginationData(totalCount int64, currentPage, perPage int) Pagination
 }
 
 func SendPaginatedResponse(c *gin.Context, status int, items interface{}, pagination PaginationData) {
-	// First ensure CORS headers are set
+
 	ensureCORSHeaders(c)
 
 	c.Header("Content-Type", "application/json")

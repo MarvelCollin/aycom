@@ -3,25 +3,20 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { SunIcon, MoonIcon } from 'svelte-feather-icons';
 
-  // Props
-  export let size = 'md'; // 'sm', 'md', 'lg'
+  export let size = 'md'; 
   export let showLabel = false;
-  
-  // Get the theme store
+
   const { theme, toggleTheme } = useTheme();
-  
-  // Logging
+
   const logger = createLoggerWithPrefix('ThemeToggle');
-  
-  // Toggle the theme
+
   function handleToggle() {
     toggleTheme();
     logger.debug('Theme toggled', { newTheme: $theme });
   }
 
-  // Define icon size based on prop
   let iconSize = '';
-  
+
   $: {
     switch (size) {
       case 'sm':

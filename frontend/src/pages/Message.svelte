@@ -24,6 +24,56 @@
   import { uploadMedia } from '../api/media';
   import type { Attachment, Chat, LastMessage, Message, Participant } from '../interfaces/IChat';
   
+  function logError(message: string, error: any) {
+    logger.error(message, error);
+    console.error(message, error);
+  }
+
+  function logInfo(message: string, data?: any) {
+    logger.info(message, data);
+    console.log(message, data);
+  }
+
+  function logDebug(message: string, data?: any) {
+    logger.debug(message, data);
+    console.log(message, data);
+  }
+
+  function logWarn(message: string, data?: any) {
+    logger.warn(message, data);
+    console.warn(message, data);
+  }
+
+  function ensureStringTimestamp(timestamp: string | number | Date): string {
+    if (typeof timestamp === 'string') {
+      return timestamp;
+    } else if (timestamp instanceof Date) {
+      return timestamp.toISOString();
+    } else if (typeof timestamp === 'number') {
+      return new Date(timestamp).toISOString();
+    }
+    return new Date().toISOString();
+  }
+
+  // Wrapper function with proper typing to fix TypeScript error
+  async function sendMessageToApi(chatId: string, messageData: any) {
+    // Create a new object with ONLY the properties we need, to avoid any unwanted fields
+    const formattedData = {
+      content: messageData.content || '' // Ensure content field exists and is lowercase
+    };
+    
+    // Only add attachment if it exists
+    if (messageData.attachment) {
+      formattedData['attachment'] = messageData.attachment;
+    }
+    
+    // Log the exact data being sent to the API
+    logger.debug(`Sending message to chat ${chatId} with data:`, JSON.stringify(formattedData));
+    
+    // Use the direct import from chatApi instead of the alias
+    return await chatApi.sendMessage(chatId, formattedData);
+  }
+  
   const { 
     listChats, 
     listMessages, 
@@ -914,19 +964,6 @@
     }
   }
   
-  // Helper function to ensure timestamp is a string
-  function ensureStringTimestamp(timestamp: string | Date | number | unknown): string {
-    if (typeof timestamp === 'string') {
-      return timestamp;
-    } else if (timestamp instanceof Date) {
-      return timestamp.toISOString();
-    } else if (typeof timestamp === 'number') {
-      return new Date(timestamp).toISOString();
-    } else {
-      return new Date().toISOString();
-    }
-  }
-  
   // Chat interaction functions
   async function selectChat(chat: Chat | string) {
     let chatId: string;
@@ -1212,18 +1249,40 @@
         }
       }
 
-      // Send the message to the API
+      // Send the message to the API and WebSocket
       const messageData: Record<string, any> = {
-        content: newMessage,
+        content: content, // Use the parameter content, not newMessage
         sender_id: $authStore.user_id,
         attachment: selectedAttachments.length > 0 ? selectedAttachments[0] : null
       };
       
       logger.debug(`Sending message via API to chat ${selectedChat?.id}`);
       
+      // FIRST: Send via WebSocket for real-time delivery to other users
+      const wsMessage = {
+        type: 'text' as MessageType,
+        content: content,
+        chat_id: selectedChat?.id || '',
+        user_id: $authStore.user_id || '',
+        sender_id: $authStore.user_id || '',
+        sender_name: displayName || username || 'You',
+        sender_avatar: avatar,
+        message_id: tempMessageId,
+        timestamp: new Date().toISOString()
+      };
+      
+      try {
+        // Send via WebSocket first for real-time delivery
+        websocketStore.sendMessage(selectedChat?.id || '', wsMessage);
+        logger.debug(`Message sent via WebSocket to chat ${selectedChat?.id}`);
+      } catch (wsError) {
+        logWarn('Failed to send message via WebSocket, continuing with API', wsError);
+      }
+      
+      // SECOND: Send via API for database persistence
       try {
         const result = await sendMessageToApi(selectedChat?.id || '', messageData);
-        logInfo('Message sent successfully via API:', result);
+        logInfo('Message sent successfully via API');
         
         if (selectedChat) {
           selectedChat = {
@@ -1242,19 +1301,15 @@
       } catch (apiError) {
         logError('Failed to send message via API', apiError);
         toastStore.showToast({
-          message: 'Network issue detected. Message may not be delivered.',
+          message: 'Failed to send message. Please try again.',
           type: 'error'
         });
         
-        // Mark the message as potentially failed
+        // Remove the failed message from UI instead of marking as failed
         if (selectedChat) {
           selectedChat = {
             ...selectedChat,
-            messages: selectedChat.messages.map(msg => 
-              msg.id === tempMessageId 
-                ? { ...msg, failed: true } 
-                : msg
-            )
+            messages: selectedChat.messages.filter(msg => msg.id !== tempMessageId)
           };
         }
       }
@@ -1332,19 +1387,25 @@
             return chat;
           }) as Chat[];
         }
-        }
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logError('Failed to unsend message', errorMessage);
       toastStore.showToast({ message: `Failed to unsend message: ${errorMessage}`, type: 'error' });
       
       // Revert the optimistic update on error
-      selectedChat = {
-        ...selectedChat,
-        messages: selectedChat.messages.map(msg => 
-          msg.id === messageId ? { ...message } : msg
-        )
-      };
+      if (selectedChat) {
+        // Fetch the original message state to revert
+        const originalMessage = selectedChat.messages.find(m => m.id === messageId);
+        if (originalMessage) {
+          selectedChat = {
+            ...selectedChat,
+            messages: selectedChat.messages.map(msg => 
+              msg.id === messageId ? { ...originalMessage, is_deleted: false, content: originalMessage.content } : msg
+            )
+          };
+        }
+      }
     }
   }
   
@@ -1523,28 +1584,6 @@
     }
   }
 
-  // Fix the log function to handle the correct number of arguments
-  function logDebug(message: string) {
-    logger.debug(message);
-  }
-  
-  function logInfo(message: string) {
-    logger.info(message);
-  }
-  
-  function logWarn(message: string) {
-    logger.warn(message);
-  }
-  
-  async function logError(message: string, error?: any) {
-    if (error) {
-      console.error(message, error);
-      logger.error(message);
-        } else {
-      logger.error(message);
-    }
-  }
-  
   // Helper function to ensure we have valid arrays for chats and filteredChats
   function ensureValidChatArrays() {
     if (!Array.isArray(chats)) {
@@ -1614,12 +1653,6 @@
   function showToast(options: { message: string; type: ToastTypeEnum }) {
     toastStore.showToast(options);
   }
-
-  // Wrapper function with proper typing to fix TypeScript error
-  async function sendMessageToApi(chatId: string, messageData: any) {
-    // Use the direct import from chatApi instead of the alias
-    return await chatApi.sendMessage(chatId, messageData);
-  }
 </script>
 
 <style>
@@ -1676,15 +1709,7 @@
     background-color: #2a2a2a;
   }
 
-  .dark-theme .message-input-area {
-    background-color: #2a2a2a;
-    border-color: #444;
-  }
-
-  .dark-theme .message-input {
-    background-color: #333;
-    color: #fff;
-  }
+  /* These styles are now applied directly in the main dark-theme section */
 
   /* Chat list header */
   .chat-list-header {
@@ -2064,19 +2089,32 @@
   }
   
   /* Dark mode styles for dialog */
-  .dark-theme .dialog-content {
-    background-color: #2a2a2a;
-    color: #fff;
+  /* Moving these styles to be applied through the container class with dark-theme */
+
+  .dark-theme .msg-clear-search {
+    color: #bbb;
   }
   
-  .dark-theme .cancel-button {
-    background-color: #333;
-    color: #fff;
-    border-color: #444;
+  /* Image and GIF attachment button styles */
+  .image-button {
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: block;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
   }
   
-  .dark-theme .cancel-button:hover {
-    background-color: #444;
+  .image-button:focus {
+    outline: 2px solid #0066ff;
+  }
+  
+  .image-button img {
+    width: 100%;
+    display: block;
   }
 </style>
 
@@ -2275,7 +2313,7 @@
                   <div class="msg-unread-badge">{chat.unread_count}</div>
                     {/if}
                       <!-- Delete button -->
-                      <span 
+                      <button 
                         class="delete-chat-btn" 
                         on:click|stopPropagation={() => requestDeleteChat(chat)}
                         aria-label="Delete conversation"
@@ -2285,7 +2323,7 @@
                           <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
                           <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
                         </svg>
-                      </span>
+                      </button>
                     </div>
           </div>
             {/each}
@@ -2380,16 +2418,21 @@
                             {#each message.attachments as attachment}
                               {#if attachment.type === 'image'}
                                 <div class="image-attachment">
-                                  <img src={attachment.url} alt="Image attachment" on:click={() => window.open(attachment.url, '_blank')} />
+                                  <button class="image-button" on:click={() => window.open(attachment.url, '_blank')} aria-label="View image">
+                                    <img src={attachment.url} alt="Attachment" />
+                                  </button>
                                 </div>
                               {:else if attachment.type === 'gif'}
                                 <div class="gif-attachment">
-                                  <img src={attachment.url} alt="GIF attachment" on:click={() => window.open(attachment.url, '_blank')} />
+                                  <button class="image-button" on:click={() => window.open(attachment.url, '_blank')} aria-label="View GIF">
+                                    <img src={attachment.url} alt="GIF" />
+                                  </button>
                                 </div>
                               {:else if attachment.type === 'video'}
                                 <div class="video-attachment">
                                   <video controls>
                                     <source src={attachment.url} type="video/mp4">
+                                    <track kind="captions" src="" label="English" default>
                                     Your browser does not support the video tag.
                                   </video>
                                 </div>
@@ -2413,16 +2456,21 @@
                             <div class="attachments-container">
                               {#if parsedContent.attachment.type === 'image'}
                                 <div class="image-attachment">
-                                  <img src={parsedContent.attachment.url} alt="Image attachment" on:click={() => window.open(parsedContent.attachment.url, '_blank')} />
+                                  <button class="image-button" on:click={() => window.open(parsedContent.attachment.url, '_blank')} aria-label="View image">
+                                    <img src={parsedContent.attachment.url} alt="Attachment" />
+                                  </button>
                                 </div>
                               {:else if parsedContent.attachment.type === 'gif'}
                                 <div class="gif-attachment">
-                                  <img src={parsedContent.attachment.url} alt="GIF attachment" on:click={() => window.open(parsedContent.attachment.url, '_blank')} />
+                                  <button class="image-button" on:click={() => window.open(parsedContent.attachment.url, '_blank')} aria-label="View GIF">
+                                    <img src={parsedContent.attachment.url} alt="GIF" />
+                                  </button>
                                 </div>
                               {:else if parsedContent.attachment.type === 'video'}
                                 <div class="video-attachment">
                                   <video controls>
                                     <source src={parsedContent.attachment.url} type="video/mp4">
+                                    <track kind="captions" src="" label="English" default>
                                     Your browser does not support the video tag.
                                   </video>
                                 </div>

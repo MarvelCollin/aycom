@@ -148,12 +148,11 @@ func InitGRPCServices() {
 		if err != nil {
 			log.Printf("Initial connection attempt to User service failed: %v", err)
 
-			// Try reconnecting with backoff
 			maxRetries := 3
 			var connErr error
 
 			for i := 0; i < maxRetries; i++ {
-				// Wait before retrying
+
 				time.Sleep(time.Duration(i+1) * time.Second)
 
 				log.Printf("Retry attempt %d/%d connecting to User service...", i+1, maxRetries)
@@ -172,7 +171,7 @@ func InitGRPCServices() {
 			if connErr != nil {
 				log.Printf("Error: Failed to connect to User service after %d retries", maxRetries)
 			} else {
-				err = nil // Connection successful on retry
+				err = nil 
 			}
 		}
 
@@ -180,11 +179,9 @@ func InitGRPCServices() {
 			UserClient = user.NewUserServiceClient(userConn)
 			log.Printf("Connected to User service at %s", userServiceAddr)
 
-			// Verify connection is working properly
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			// Try a simple ping-like call to verify connection
 			_, pingErr := UserClient.GetUser(ctx, &user.GetUserRequest{UserId: "ping-test"})
 			if pingErr != nil {
 				log.Printf("Warning: User service connection check failed: %v", pingErr)
@@ -202,7 +199,6 @@ func InitGRPCServices() {
 		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
 
-		// Add connection retries with backoff
 		communityConn, err := grpc.Dial(communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
@@ -210,12 +206,11 @@ func InitGRPCServices() {
 		if err != nil {
 			log.Printf("Initial connection attempt to Community service failed: %v", err)
 
-			// Try reconnecting with backoff
 			maxRetries := 3
 			var connErr error
 
 			for i := 0; i < maxRetries; i++ {
-				// Wait before retrying
+
 				time.Sleep(time.Duration(i+1) * time.Second)
 
 				log.Printf("Retry attempt %d/%d connecting to Community service...", i+1, maxRetries)
@@ -234,7 +229,7 @@ func InitGRPCServices() {
 			if connErr != nil {
 				log.Printf("Error: Failed to connect to Community service after %d retries", maxRetries)
 			} else {
-				err = nil // Connection successful on retry
+				err = nil 
 			}
 		}
 
@@ -242,12 +237,9 @@ func InitGRPCServices() {
 			CommunityClient = community.NewCommunityServiceClient(communityConn)
 			log.Printf("Successfully connected to Community service at %s", communityServiceAddr)
 
-			// Verify connection is working properly
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			// Try a simple ping-like call to verify connection
-			// Use ListCategories as a simple method to test connectivity
 			_, pingErr := CommunityClient.ListCategories(ctx, &community.ListCategoriesRequest{})
 			if pingErr != nil {
 				log.Printf("Warning: Community service connection check failed: %v", pingErr)

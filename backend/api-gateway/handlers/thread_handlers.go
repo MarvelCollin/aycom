@@ -925,12 +925,26 @@ func GetUserReplies(c *gin.Context) {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+				// If no replies found, return an empty array instead of an error
+				c.JSON(http.StatusOK, gin.H{
+					"replies": []interface{}{},
+					"total":   0,
+				})
+				return
 			}
 			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user replies: "+err.Error())
 		}
+		return
+	}
+
+	// Handle the case where no replies are found but no error occurred
+	if replies == nil || len(replies) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"replies": []interface{}{},
+			"total":   0,
+		})
 		return
 	}
 
@@ -972,7 +986,7 @@ func GetUserReplies(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"replies": replyItems,
-		"total":   len(replies),
+		"total":   len(replyItems),
 	})
 }
 
@@ -993,7 +1007,7 @@ func GetUserLikedThreads(c *gin.Context) {
 		}
 	}
 
-	userID := c.Param("id")
+	userID := c.Param("userId")
 
 	if userID == "me" {
 		if authenticatedUserIDStr == "" {
@@ -1050,7 +1064,7 @@ func GetUserLikedThreads(c *gin.Context) {
 		}
 
 		userID = user.ID
-		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("userId"), userID)
 	}
 
 	threads, err := threadServiceClient.GetLikedThreadsByUser(userID, page, limit)
@@ -1132,7 +1146,7 @@ func GetUserMedia(c *gin.Context) {
 		}
 	}
 
-	userID := c.Param("id")
+	userID := c.Param("userId")
 
 	if userID == "me" {
 		if authenticatedUserIDStr == "" {
@@ -1187,7 +1201,7 @@ func GetUserMedia(c *gin.Context) {
 		}
 
 		userID = user.ID
-		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("userId"), userID)
 	}
 
 	threads, err := threadServiceClient.GetUserMediaThreads(userID, page, limit)
@@ -2132,4 +2146,14 @@ func GetThreadsByHashtag(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// GetUserThreads is an alias for GetThreadsByUser to fit the route definition
+func GetUserThreads(c *gin.Context) {
+	GetThreadsByUser(c)
+}
+
+// GetUserMediaThreads is an alias for GetUserMedia to fit the route definition
+func GetUserMediaThreads(c *gin.Context) {
+	GetUserMedia(c)
 }

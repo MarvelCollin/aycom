@@ -1,6 +1,6 @@
 <script lang="ts">
   import Logo from '../common/Logo.svelte';
-  
+
   export let loading = false;
   export let success = false;
   export let error = "";
@@ -12,11 +12,11 @@
     <div class="mb-6 flex justify-center">
       <Logo size="large" />
     </div>
-    
+
     <h1 class="text-2xl font-semibold text-white mb-4">
       Google Authentication
     </h1>
-    
+
     {#if loading}
       <div class="mb-6">
         <p class="text-gray-400 mb-4">
@@ -54,9 +54,9 @@
         </a>
       </div>
     {/if}
-    
+
     <p class="text-gray-500 text-sm mt-8">
       &copy; {new Date().getFullYear()} AYCOM. All rights reserved.
     </p>
   </div>
-</div> 
+</div>

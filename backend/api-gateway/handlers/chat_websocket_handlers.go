@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +14,8 @@ import (
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 var WebSocketConfig = struct {
@@ -39,6 +40,7 @@ type ChatMessage struct {
 	Type      string    `json:"type"`
 	Content   string    `json:"content"`
 	UserID    string    `json:"user_id"`
+	SenderID  string    `json:"sender_id"`
 	ChatID    string    `json:"chat_id"`
 	Timestamp time.Time `json:"timestamp"`
 	MessageID string    `json:"message_id,omitempty"`
@@ -47,29 +49,25 @@ type ChatMessage struct {
 	IsRead    bool      `json:"is_read,omitempty"`
 }
 
-// HandleChatWebSocket handles WebSocket connections for chat messaging
 func HandleChatWebSocket(c *gin.Context) {
 	userID := ""
 
-	// Extract token from query parameter first
 	token := c.Query("token")
 	if token == "" {
-		// If not found in query, try to get from auth header
+
 		authHeader := c.GetHeader("Authorization")
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			token = strings.TrimPrefix(authHeader, "Bearer ")
 		}
 	}
 
-	// Also check userID in query parameter as a fallback
 	if userIDParam := c.Query("user_id"); userIDParam != "" {
 		userID = userIDParam
 		log.Printf("User ID from query parameter: %s", userID)
 	}
 
-	// Validate JWT token if provided
 	if token != "" {
-		// Get JWT secret from utils
+
 		jwtSecret := string(utils.GetJWTSecret())
 		parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -184,11 +182,11 @@ func communityChatReadPump(c *Client) {
 		}
 		processedMsg, err := ProcessIncomingMessage(message, c.UserID, c.ChatID)
 		if err != nil {
-			// Send error response directly to the client
+
 			log.Printf("Error processing message: %v", err)
-			c.Send <- processedMsg // processedMsg contains the error response
+			c.Send <- processedMsg
 		} else {
-			// Broadcast the processed message to all clients in the chat
+
 			log.Printf("Broadcasting message to chat %s", c.ChatID)
 			c.Manager.broadcast <- BroadcastMessage{
 				ChatID:  c.ChatID,

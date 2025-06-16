@@ -54,7 +54,7 @@ func (r *AdminRepository) GetCommunityRequests(page, limit int, status string) (
 	if status != "" {
 		query = query.Where("status = ?", status)
 	} else {
-		// Default to showing pending requests if no status is specified
+
 		query = query.Where("status = ?", "pending")
 	}
 

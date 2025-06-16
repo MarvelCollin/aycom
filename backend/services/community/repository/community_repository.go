@@ -1,12 +1,12 @@
 package repository
 
 import (
-	"aycom/backend/services/community/model"
-
 	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
 )
 
 type CommunityRepository interface {
@@ -69,14 +69,11 @@ func (r *GormCommunityRepository) List(offset, limit int) ([]*model.Community, e
 func (r *GormCommunityRepository) ListByCategories(categories []string, offset, limit int) ([]*model.Community, error) {
 	var communities []*model.Community
 
-	// If no categories specified, just return all communities
 	if len(categories) == 0 {
 		err := r.db.Preload("Categories").Offset(offset).Limit(limit).Find(&communities).Error
 		return communities, err
 	}
 
-	// Use a subquery approach to avoid join issues
-	// Get community IDs that match the category filter
 	var communityIDs []uuid.UUID
 	categoryQuery := r.db.Table("community_categories").
 		Select("community_id").
@@ -88,12 +85,10 @@ func (r *GormCommunityRepository) ListByCategories(categories []string, offset, 
 		return nil, err
 	}
 
-	// No matches found
 	if len(communityIDs) == 0 {
 		return []*model.Community{}, nil
 	}
 
-	// Get communities by IDs with pagination
 	err := r.db.Preload("Categories").
 		Where("community_id IN ?", communityIDs).
 		Offset(offset).Limit(limit).
@@ -106,23 +101,19 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 	var communities []*model.Community
 	var count int64
 
-	// First build a GORM query that doesn't use joins to avoid the SQL issue
 	dbQuery := r.db.Model(&model.Community{})
 
-	// Apply basic filters
 	if query != "" {
 		searchQuery := "%" + query + "%"
 		dbQuery = dbQuery.Where("name ILIKE ? OR description ILIKE ?", searchQuery, searchQuery)
 	}
 
-	// Apply is_approved filter if provided
 	if isApproved != nil {
 		dbQuery = dbQuery.Where("is_approved = ?", *isApproved)
 	}
 
-	// If categories are specified, use a subquery approach to avoid join issues
 	if len(categories) > 0 {
-		// Get community IDs that match the category filter
+
 		var communityIDs []uuid.UUID
 		categoryQuery := r.db.Table("community_categories").
 			Select("community_id").
@@ -134,22 +125,19 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 			return nil, 0, err
 		}
 
-		// Apply the community IDs filter
 		if len(communityIDs) > 0 {
 			dbQuery = dbQuery.Where("community_id IN ?", communityIDs)
 		} else {
-			// No matching communities found
+
 			return []*model.Community{}, 0, nil
 		}
 	}
 
-	// Count total matching records
 	err := dbQuery.Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Execute the query with pagination and eager loading of Categories
 	err = dbQuery.Preload("Categories").Offset(offset).Limit(limit).Find(&communities).Error
 	if err != nil {
 		return nil, 0, err
@@ -162,29 +150,26 @@ func (r *GormCommunityRepository) ListByUserMembership(userID uuid.UUID, status 
 	var communities []*model.Community
 	var count int64
 
-	// Validate status parameter
 	if status != "member" && status != "pending" {
 		return nil, 0, fmt.Errorf("invalid status: %s (must be 'member' or 'pending')", status)
 	}
 
 	query := r.db.Model(&model.Community{}).
 		Preload("Categories").
-		Select("DISTINCT communities.*") // Use DISTINCT to avoid duplicates
+		Select("DISTINCT communities.*") 
 
 	if status == "member" {
-		// Get communities where the user is a member
+
 		query = query.Joins("JOIN community_members cm ON cm.community_id = communities.community_id").
 			Where("cm.user_id = ? AND cm.deleted_at IS NULL", userID)
 	} else if status == "pending" {
-		// Get communities where the user has a pending join request
+
 		query = query.Joins("JOIN community_join_requests cjr ON cjr.community_id = communities.community_id").
 			Where("cjr.user_id = ? AND cjr.status = 'pending' AND cjr.deleted_at IS NULL", userID)
 	}
 
-	// Make sure we're only returning non-deleted communities
 	query = query.Where("communities.deleted_at IS NULL")
 
-	// Count first using a separate query to avoid issues with DISTINCT in count
 	countQuery := r.db.Model(&model.Community{})
 	if status == "member" {
 		countQuery = countQuery.Joins("JOIN community_members cm ON cm.community_id = communities.community_id").
@@ -194,7 +179,6 @@ func (r *GormCommunityRepository) ListByUserMembership(userID uuid.UUID, status 
 			Where("cjr.user_id = ? AND cjr.status = 'pending' AND cjr.deleted_at IS NULL", userID)
 	}
 
-	// Make sure we're only counting non-deleted communities
 	countQuery = countQuery.Where("communities.deleted_at IS NULL")
 
 	err := countQuery.Distinct("communities.community_id").Count(&count).Error
@@ -202,8 +186,6 @@ func (r *GormCommunityRepository) ListByUserMembership(userID uuid.UUID, status 
 		return nil, 0, fmt.Errorf("failed to count communities: %w", err)
 	}
 
-	// Then fetch the actual communities with pagination
-	// Add error handling for query execution
 	if offset < 0 {
 		offset = 0
 	}
@@ -216,7 +198,6 @@ func (r *GormCommunityRepository) ListByUserMembership(userID uuid.UUID, status 
 		return nil, 0, fmt.Errorf("failed to fetch communities: %w", err)
 	}
 
-	// Always return at least an empty slice, not nil
 	if communities == nil {
 		communities = []*model.Community{}
 	}

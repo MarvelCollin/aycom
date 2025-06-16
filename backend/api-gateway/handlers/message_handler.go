@@ -1,15 +1,18 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	communityProto "aycom/backend/proto/community"
 	userProto "aycom/backend/proto/user"
 	"context"
+	"encoding/json"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func CreateChat(c *gin.Context) {
@@ -394,12 +397,19 @@ func SendMessage(c *gin.Context) {
 	}
 
 	var req struct {
-		Content string `json:"content" binding:"required"`
+		Content string `json:"content" binding:"required" validate:"required,min=1"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("SendMessage: JSON binding error: %v", err)
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
+		return
+	}
+
+	// Additional validation to ensure content is not empty or just whitespace
+	if req.Content == "" || len(strings.TrimSpace(req.Content)) == 0 {
+		log.Printf("SendMessage: Empty message content provided")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Message content cannot be empty")
 		return
 	}
 
@@ -459,9 +469,52 @@ func SendMessage(c *gin.Context) {
 
 	log.Printf("SendMessage: Message sent successfully with ID %s", msgID)
 
-	// Return the message ID and details
-	timestamp := time.Now().Unix()
+	// Get timestamp for response
+	timestamp := time.Now()
 
+	// **ADD WEBSOCKET BROADCAST AFTER SUCCESSFUL DATABASE SAVE**
+	// Create WebSocket message to broadcast to all chat participants
+	wsMessage := map[string]interface{}{
+		"type":       "text",
+		"content":    req.Content,
+		"user_id":    userID.(string),
+		"sender_id":  userID.(string),
+		"chat_id":    chatID,
+		"timestamp":  timestamp.Unix(),
+		"message_id": msgID,
+		"is_edited":  false,
+		"is_deleted": false,
+		"is_read":    false,
+	}
+
+	// Marshal the WebSocket message
+	wsMessageBytes, wsErr := json.Marshal(wsMessage)
+	if wsErr != nil {
+		log.Printf("SendMessage: Error marshaling WebSocket message: %v", wsErr)
+	} else {
+		// Get WebSocket manager and broadcast the message
+		wsManager := GetWebSocketManager()
+		if wsManager != nil {
+			// Create broadcast message
+			broadcastMsg := BroadcastMessage{
+				ChatID:  chatID,
+				Message: wsMessageBytes,
+				UserID:  userID.(string),
+			}
+			
+			// Send to broadcast channel (non-blocking)
+			select {
+			case wsManager.broadcast <- broadcastMsg:
+				log.Printf("SendMessage: Message broadcasted via WebSocket to chat %s", chatID)
+			default:
+				log.Printf("SendMessage: WebSocket broadcast channel full, message not sent via WebSocket")
+			}
+		} else {
+			log.Printf("SendMessage: WebSocket manager not available, skipping WebSocket broadcast")
+		}
+	}
+
+	// Return the message ID and details
 	utils.SendSuccessResponse(c, 201, gin.H{
 		"message_id": msgID,
 		"message": gin.H{
@@ -469,7 +522,7 @@ func SendMessage(c *gin.Context) {
 			"chat_id":    chatID,
 			"sender_id":  userID,
 			"content":    req.Content,
-			"timestamp":  timestamp,
+			"timestamp":  timestamp.Unix(),
 			"is_read":    false,
 			"is_edited":  false,
 			"is_deleted": false,

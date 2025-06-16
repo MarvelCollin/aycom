@@ -3,28 +3,23 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { useTheme } from '../../hooks/useTheme';
   import { onMount } from 'svelte';
-  
+
   const logger = createLoggerWithPrefix('ExploreTabs');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Props
+
   export let activeTab: 'trending' | 'media' | 'people' | 'communities' | 'latest' = 'trending';
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
-  
-  // References
+
   let tabsContainer: HTMLElement;
   let activeTabElement: HTMLElement;
-  
-  // Handle tab change
+
   function handleTabChange(tab: 'trending' | 'media' | 'people' | 'communities' | 'latest') {
     logger.debug('Tab changed', { from: activeTab, to: tab });
     activeTab = tab;
     dispatch('tabChange', tab);
-    
-    // After update, scroll the active tab into view
+
     setTimeout(() => {
       const newActiveTab = document.querySelector(`.tab-button.active`) as HTMLElement;
       if (newActiveTab) {
@@ -32,16 +27,14 @@
       }
     }, 10);
   }
-  
-  // Scroll the active tab into view
+
   function scrollTabIntoView(tabElement: HTMLElement) {
     if (tabsContainer && tabElement) {
       const containerRect = tabsContainer.getBoundingClientRect();
       const tabRect = tabElement.getBoundingClientRect();
-      
-      // Check if tab is not fully visible
+
       if (tabRect.left < containerRect.left || tabRect.right > containerRect.right) {
-        // Calculate the scroll position to center the tab
+
         const scrollPosition = tabElement.offsetLeft - tabsContainer.offsetWidth / 2 + tabElement.offsetWidth / 2;
         tabsContainer.scrollTo({
           left: scrollPosition,
@@ -50,10 +43,9 @@
       }
     }
   }
-  
-  // Initialize after component mounts
+
   onMount(() => {
-    // Get active tab element and scroll it into view
+
     const element = document.querySelector('.tab-button.active');
     if (element) {
       activeTabElement = element;
@@ -116,25 +108,25 @@
     background-color: var(--bg-primary);
     position: relative;
   }
-  
+
   .explore-tabs-dark {
     border-bottom: 1px solid var(--border-color-dark);
     background-color: var(--dark-bg-primary);
   }
-  
+
   .tabs-container {
     display: flex;
     overflow-x: auto;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; 
+    -ms-overflow-style: none; 
     position: relative;
     z-index: 2;
   }
-  
+
   .tabs-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Edge */
+    display: none; 
   }
-  
+
   .tab-button {
     padding: var(--space-3) var(--space-4);
     font-weight: var(--font-weight-medium);
@@ -148,26 +140,26 @@
     flex: 1 1 auto;
     min-width: max-content;
   }
-  
+
   .tab-button-dark {
     color: var(--dark-text-secondary, rgba(255, 255, 255, 0.7));
   }
-  
+
   .tab-button:hover {
     color: var(--text-primary);
     background-color: var(--bg-hover);
   }
-  
+
   .tab-button-dark:hover {
     color: var(--dark-text-primary, #fff);
     background-color: rgba(255, 255, 255, 0.1);
   }
-  
+
   .tab-button.active {
     color: var(--color-primary);
     font-weight: var(--font-weight-bold);
   }
-  
+
   .tab-indicator-container {
     position: absolute;
     bottom: 0;
@@ -177,7 +169,7 @@
     overflow: hidden;
     z-index: 1;
   }
-  
+
   .tab-indicator {
     position: absolute;
     height: 4px;
@@ -185,42 +177,40 @@
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     transition: transform 0.3s ease;
   }
-  
+
   .tab-indicator.trending {
     width: 20%;
     transform: translateX(0%);
   }
-  
+
   .tab-indicator.media {
     width: 20%;
     transform: translateX(100%);
   }
-  
+
   .tab-indicator.people {
     width: 20%;
     transform: translateX(200%);
   }
-  
+
   .tab-indicator.communities {
     width: 20%;
     transform: translateX(300%);
   }
-  
+
   .tab-indicator.latest {
     width: 20%;
     transform: translateX(400%);
   }
-  
-  /* Responsive adjustments */
+
   @media (max-width: 576px) {
     .tab-button {
       padding: var(--space-2) var(--space-3);
       font-size: var(--font-size-sm);
     }
-    
-    /* Force equal width tabs in mobile */
+
     .tab-indicator {
       width: 20%;
     }
   }
-</style> 
+</style>

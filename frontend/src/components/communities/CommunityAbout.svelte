@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Types
+
   interface Community {
     id: string;
     name: string;
@@ -9,17 +9,16 @@
     [key: string]: any;
   }
 
-  // Props
   export let community: Community | null = null;
 </script>
 
 <div class="about-container">
   <h2 class="section-title">About {community?.name || 'Community'}</h2>
-  
+
   <div class="community-description">
     <p>{community?.description || 'No description provided'}</p>
   </div>
-  
+
   {#if community?.categories && community.categories.length > 0}
     <div class="categories-section">
       <h3>Categories</h3>
@@ -30,7 +29,7 @@
       </div>
     </div>
   {/if}
-  
+
   {#if community?.created_at}
     <div class="community-metadata">
       <p>Created: {new Date(community.created_at).toLocaleDateString()}</p>

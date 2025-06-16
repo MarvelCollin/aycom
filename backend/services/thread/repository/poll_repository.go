@@ -3,14 +3,13 @@ package repository
 import (
 	"time"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
 )
 
 type PollRepository interface {
-
 	CreatePoll(poll *model.Poll) error
 	FindPollByID(id string) (*model.Poll, error)
 	FindPollByThreadID(threadID string) (*model.Poll, error)
@@ -157,7 +156,7 @@ func (r *PostgresPollRepository) FindVoteByUserAndPoll(userID, pollID string) (*
 	result := r.db.Where("user_id = ? AND poll_id = ?", userUUID, pollUUID).First(&vote)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			return nil, nil 
+			return nil, nil
 		}
 		return nil, result.Error
 	}

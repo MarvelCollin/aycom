@@ -51,15 +51,13 @@ var (
 func init() {
 	notificationManager = NewNotificationManager()
 
-	// Add some sample notifications for testing
 	seedSampleNotifications()
 }
 
 func seedSampleNotifications() {
-	// Sample user ID (you can replace this with an actual user ID from your system)
+
 	sampleUserID := "user-123"
 
-	// Sample like notification
 	likeData := map[string]interface{}{
 		"username":       "alice_wonder",
 		"display_name":   "Alice Wonder",
@@ -69,7 +67,6 @@ func seedSampleNotifications() {
 	}
 	notificationManager.AddNotification(sampleUserID, NotificationTypeLike, "liked your post", likeData)
 
-	// Sample bookmark notification
 	bookmarkData := map[string]interface{}{
 		"username":       "bob_builder",
 		"display_name":   "Bob Builder",
@@ -79,7 +76,6 @@ func seedSampleNotifications() {
 	}
 	notificationManager.AddNotification(sampleUserID, "bookmark", "bookmarked your post", bookmarkData)
 
-	// Sample reply notification
 	replyData := map[string]interface{}{
 		"username":       "charlie_code",
 		"display_name":   "Charlie Code",
@@ -89,7 +85,6 @@ func seedSampleNotifications() {
 	}
 	notificationManager.AddNotification(sampleUserID, NotificationTypeReply, "replied to your post", replyData)
 
-	// Sample mention notification
 	mentionData := map[string]interface{}{
 		"username":       "diana_dev",
 		"display_name":   "Diana Developer",
@@ -99,7 +94,6 @@ func seedSampleNotifications() {
 	}
 	notificationManager.AddNotification(sampleUserID, NotificationTypeMention, "mentioned you in a post", mentionData)
 
-	// Sample follow notification
 	followData := map[string]interface{}{
 		"username":     "evan_explorer",
 		"display_name": "Evan Explorer",
@@ -248,10 +242,8 @@ func GetMentionNotifications(c *gin.Context) {
 		return
 	}
 
-	// Get mention notifications from the notification manager
 	notifications := notificationManager.GetUserNotifications(userID.(string), 50, 0)
 
-	// Filter for mention type notifications
 	var mentions []gin.H
 	for _, notification := range notifications {
 		if notification.Type == NotificationTypeMention {
@@ -279,7 +271,6 @@ func GetMentionNotifications(c *gin.Context) {
 	})
 }
 
-// GetUserNotifications gets all notifications for the authenticated user
 func GetUserNotifications(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -287,10 +278,8 @@ func GetUserNotifications(c *gin.Context) {
 		return
 	}
 
-	// Get all notifications for the user
 	notifications := notificationManager.GetUserNotifications(userID.(string), 50, 0)
 
-	// Convert to response format
 	var notificationList []gin.H
 	for _, notification := range notifications {
 		notificationData := gin.H{
@@ -303,7 +292,6 @@ func GetUserNotifications(c *gin.Context) {
 			"created_at": notification.CreatedAt.Format(time.RFC3339),
 		}
 
-		// Parse the data field to extract additional information
 		var data map[string]interface{}
 		if err := json.Unmarshal(notification.Data, &data); err == nil {
 			if username, ok := data["username"].(string); ok {
@@ -350,7 +338,6 @@ func MarkNotificationAsRead(c *gin.Context) {
 		return
 	}
 
-	// Mark the notification as read
 	err := notificationManager.MarkNotificationAsRead(userID.(string), notificationID)
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to mark notification as read")
@@ -436,7 +423,6 @@ func GetNotificationPreferences(c *gin.Context) {
 	})
 }
 
-// GetUserInteractionNotifications gets all user interactions (likes, bookmarks, replies) for notifications
 func GetUserInteractionNotifications(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -447,28 +433,24 @@ func GetUserInteractionNotifications(c *gin.Context) {
 	userIDStr := userID.(string)
 	log.Printf("Fetching interaction notifications for user: %s", userIDStr)
 
-	// Fetch user's liked threads
 	likes, err := fetchUserLikes(userIDStr)
 	if err != nil {
 		log.Printf("Error fetching user likes: %v", err)
-		likes = []gin.H{} // Return empty array on error
+		likes = []gin.H{} 
 	}
 
-	// Fetch user's bookmarked content
 	bookmarks, err := fetchUserBookmarks(userIDStr)
 	if err != nil {
 		log.Printf("Error fetching user bookmarks: %v", err)
-		bookmarks = []gin.H{} // Return empty array on error
+		bookmarks = []gin.H{} 
 	}
 
-	// Fetch user's replies
 	replies, err := fetchUserReplies(userIDStr)
 	if err != nil {
 		log.Printf("Error fetching user replies: %v", err)
-		replies = []gin.H{} // Return empty array on error
+		replies = []gin.H{} 
 	}
 
-	// For now, get follows from the in-memory notification manager
 	notifications := notificationManager.GetUserNotifications(userIDStr, 100, 0)
 	var follows []gin.H
 	for _, notification := range notifications {
@@ -483,7 +465,6 @@ func GetUserInteractionNotifications(c *gin.Context) {
 				"created_at": notification.CreatedAt.Format(time.RFC3339),
 			}
 
-			// Parse the data field to extract additional information
 			var data map[string]interface{}
 			if err := json.Unmarshal(notification.Data, &data); err == nil {
 				if username, ok := data["username"].(string); ok {
@@ -511,12 +492,9 @@ func GetUserInteractionNotifications(c *gin.Context) {
 	})
 }
 
-// Helper functions to fetch user interactions from respective services
-
 func fetchUserLikes(userID string) ([]gin.H, error) {
 	log.Printf("Fetching likes for user: %s", userID)
 
-	// Make HTTP request to get user's liked threads
 	resp, err := http.Get(fmt.Sprintf("http://localhost:8083/api/v1/threads/user/%s/likes", userID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user likes: %v", err)
@@ -554,7 +532,7 @@ func fetchUserLikes(userID string) ([]gin.H, error) {
 	var likes []gin.H
 	for _, thread := range response.Data.Threads {
 		likes = append(likes, gin.H{
-			"id":             uuid.New().String(), // Generate a notification ID
+			"id":             uuid.New().String(), 
 			"type":           "like",
 			"user_id":        thread.UserID,
 			"username":       thread.Username,
@@ -562,7 +540,7 @@ func fetchUserLikes(userID string) ([]gin.H, error) {
 			"avatar":         thread.Avatar,
 			"thread_id":      thread.ThreadID,
 			"thread_content": thread.Content,
-			"is_read":        false, // New interactions are unread
+			"is_read":        false, 
 			"timestamp":      thread.LikedAt.Format(time.RFC3339),
 			"created_at":     thread.LikedAt.Format(time.RFC3339),
 		})
@@ -574,7 +552,6 @@ func fetchUserLikes(userID string) ([]gin.H, error) {
 func fetchUserBookmarks(userID string) ([]gin.H, error) {
 	log.Printf("Fetching bookmarks for user: %s", userID)
 
-	// Make HTTP request to get user's bookmarked content
 	resp, err := http.Get("http://localhost:8083/api/v1/bookmarks")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user bookmarks: %v", err)
@@ -612,7 +589,7 @@ func fetchUserBookmarks(userID string) ([]gin.H, error) {
 	var bookmarks []gin.H
 	for _, bookmark := range response.Data.Bookmarks {
 		bookmarks = append(bookmarks, gin.H{
-			"id":             uuid.New().String(), // Generate a notification ID
+			"id":             uuid.New().String(), 
 			"type":           "bookmark",
 			"user_id":        bookmark.UserID,
 			"username":       bookmark.Username,
@@ -620,7 +597,7 @@ func fetchUserBookmarks(userID string) ([]gin.H, error) {
 			"avatar":         bookmark.Avatar,
 			"thread_id":      bookmark.ThreadID,
 			"thread_content": bookmark.Content,
-			"is_read":        false, // New interactions are unread
+			"is_read":        false, 
 			"timestamp":      bookmark.BookmarkedAt.Format(time.RFC3339),
 			"created_at":     bookmark.BookmarkedAt.Format(time.RFC3339),
 		})
@@ -632,7 +609,6 @@ func fetchUserBookmarks(userID string) ([]gin.H, error) {
 func fetchUserReplies(userID string) ([]gin.H, error) {
 	log.Printf("Fetching replies for user: %s", userID)
 
-	// Make HTTP request to get user's replies
 	resp, err := http.Get(fmt.Sprintf("http://localhost:8083/api/v1/threads/user/%s/replies", userID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user replies: %v", err)
@@ -671,7 +647,7 @@ func fetchUserReplies(userID string) ([]gin.H, error) {
 	var replies []gin.H
 	for _, reply := range response.Data.Replies {
 		replies = append(replies, gin.H{
-			"id":             uuid.New().String(), // Generate a notification ID
+			"id":             uuid.New().String(), 
 			"type":           "reply",
 			"user_id":        reply.UserID,
 			"username":       reply.Username,
@@ -680,7 +656,7 @@ func fetchUserReplies(userID string) ([]gin.H, error) {
 			"thread_id":      reply.ThreadID,
 			"thread_content": reply.ThreadContent,
 			"reply_content":  reply.Content,
-			"is_read":        false, // New interactions are unread
+			"is_read":        false, 
 			"timestamp":      reply.CreatedAt.Format(time.RFC3339),
 			"created_at":     reply.CreatedAt.Format(time.RFC3339),
 		})

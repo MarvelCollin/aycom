@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func isDevelopment() bool {
@@ -45,55 +46,47 @@ func CORS() gin.HandlerFunc {
 			origin = "http://localhost:3000"
 		}
 
-		// Set CORS headers to be extremely permissive
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token, Pragma, Expires, Connection, User-Agent, Host, Referer, Cookie, Set-Cookie, *")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Powered-By")
 
-		// Handle preflight OPTIONS request immediately
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 
-		// Save the original writer so we can write the response headers even if this route redirects
 		origWriter := c.Writer
 
-		// Create a custom response writer that ensures CORS headers are always set
 		c.Writer = &corsResponseWriter{ResponseWriter: origWriter, origin: origin}
 
 		c.Next()
 	}
 }
 
-// corsResponseWriter is a custom ResponseWriter that ensures CORS headers are set on all responses
 type corsResponseWriter struct {
 	gin.ResponseWriter
 	origin string
 }
 
-// Write ensures CORS headers are set before writing the response body
 func (w *corsResponseWriter) Write(data []byte) (int, error) {
 	w.ensureCORSHeaders()
 	return w.ResponseWriter.Write(data)
 }
 
-// WriteHeader ensures CORS headers are set before writing the status code
 func (w *corsResponseWriter) WriteHeader(statusCode int) {
 	w.ensureCORSHeaders()
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-// ensureCORSHeaders ensures CORS headers are set on the response
 func (w *corsResponseWriter) ensureCORSHeaders() {
 	w.Header().Set("Access-Control-Allow-Origin", w.origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
 	w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token, Pragma, Expires, Connection, User-Agent, Host, Referer, Cookie, Set-Cookie, *")
-	w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+	w.Header().Set("Access-Control-Max-Age", "86400")
 	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Powered-By")
 }
 
@@ -147,11 +140,11 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		token := parts[1]
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Token length: %d chars", len(token))
-			// Add full token logging for debugging
+
 			log.Printf("JWTAuth (bookmarks): Full token: %s", token)
 		} else if isThreadsEndpoint {
 			log.Printf("JWTAuth (threads): Token length: %d chars", len(token))
-			// Add full token logging for debugging
+
 			log.Printf("JWTAuth (threads): Full token: %s", token)
 		} else {
 			log.Printf("Token length: %d chars", len(token))
@@ -212,7 +205,6 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// First try to get user ID from the standard "sub" claim
 		userIdClaim := claims["sub"]
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
@@ -224,7 +216,7 @@ func JWTAuth(secret string) gin.HandlerFunc {
 
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
-			// Fallback to "user_id" for backward compatibility
+
 			userIdClaim = claims["user_id"]
 			if isBookmarksEndpoint {
 				log.Printf("JWTAuth (bookmarks): No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
@@ -239,7 +231,6 @@ func JWTAuth(secret string) gin.HandlerFunc {
 				if isBookmarksEndpoint {
 					log.Printf("JWTAuth (bookmarks): No valid user identifier in token claims")
 
-					// Log all available claims for debugging
 					log.Printf("JWTAuth (bookmarks): Available claims:")
 					for key, value := range claims {
 						log.Printf("  %s: %v (Type: %T)", key, value, value)
@@ -247,7 +238,6 @@ func JWTAuth(secret string) gin.HandlerFunc {
 				} else if isThreadsEndpoint {
 					log.Printf("JWTAuth (threads): No valid user identifier in token claims")
 
-					// Log all available claims for debugging
 					log.Printf("JWTAuth (threads): Available claims:")
 					for key, value := range claims {
 						log.Printf("  %s: %v (Type: %T)", key, value, value)
@@ -255,7 +245,6 @@ func JWTAuth(secret string) gin.HandlerFunc {
 				} else {
 					log.Printf("JWT Middleware: No valid user identifier in token claims")
 
-					// Log all available claims for debugging
 					log.Printf("JWT Middleware: Available claims:")
 					for key, value := range claims {
 						log.Printf("  %s: %v (Type: %T)", key, value, value)
@@ -336,11 +325,10 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// Try "sub" claim first (standard JWT approach)
 		userIdClaim := claims["sub"]
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
-			// Fallback to "user_id" for backward compatibility
+
 			userIdClaim = claims["user_id"]
 			userIdStr, ok = userIdClaim.(string)
 			if !ok {
@@ -361,14 +349,12 @@ func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log.Printf("AdminOnly middleware processing request for path: %s", c.Request.URL.Path)
 
-		// Special bypass for development mode - REMOVE IN PRODUCTION
 		if isDevelopment() {
 			log.Printf("AdminOnly: Development mode detected, bypassing admin check")
 			c.Next()
 			return
 		}
 
-		// Get user ID from context
 		_, exists := c.Get("userID")
 		if !exists {
 			log.Printf("AdminOnly: No userID in context")
@@ -380,7 +366,6 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		// Check admin status with actual token
 		tokenString := c.GetHeader("Authorization")
 		if tokenString == "" {
 			log.Printf("AdminOnly: No Authorization header")
@@ -402,10 +387,9 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		tokenString = tokenString[7:] // Remove Bearer prefix
+		tokenString = tokenString[7:]
 		log.Printf("AdminOnly: Token length: %d", len(tokenString))
 
-		// Actually validate the token and check isAdmin claim
 		claims := jwt.MapClaims{}
 		secret := utils.GetJWTSecret()
 
@@ -436,10 +420,9 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		// Make sure we have a valid user ID first
 		_, userOk := claims["sub"].(string)
 		if !userOk {
-			// Try legacy format
+
 			_, userOk = claims["user_id"].(string)
 			if !userOk {
 				log.Printf("AdminOnly: No valid user ID in claims")
@@ -452,16 +435,13 @@ func AdminOnly() gin.HandlerFunc {
 			}
 		}
 
-		// Check if user is admin in claims - support multiple formats
 		isAdmin := false
 
-		// Log all claims for debugging
 		log.Printf("AdminOnly: Token claims:")
 		for k, v := range claims {
 			log.Printf("  %s: %v (Type: %T)", k, v, v)
 		}
 
-		// Check common claim names for is_admin
 		if adminValue, exists := claims["is_admin"]; exists {
 			log.Printf("AdminOnly: Found is_admin claim: %v (Type: %T)", adminValue, adminValue)
 			switch v := adminValue.(type) {
@@ -469,12 +449,11 @@ func AdminOnly() gin.HandlerFunc {
 				isAdmin = v
 			case string:
 				isAdmin = v == "true" || v == "t" || v == "1"
-			case float64: // JSON numbers are parsed as float64
+			case float64:
 				isAdmin = v == 1
 			}
 		}
 
-		// Also check for other possible formats
 		if !isAdmin {
 			if adminValue, exists := claims["admin"]; exists {
 				log.Printf("AdminOnly: Found admin claim: %v (Type: %T)", adminValue, adminValue)

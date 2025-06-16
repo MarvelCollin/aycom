@@ -8,18 +8,15 @@
   import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
   import type { User, ApiUserResponse, CreateChatResponse } from '../../interfaces/IChat';
 
-  // Extract the API methods we need
   const { searchUsers, getAllUsers, getUserById, createChat } = api;
 
   const logger = createLoggerWithPrefix('CreateGroupChat');
   const dispatch = createEventDispatcher();
   const { getAuthState } = useAuth();
 
-  // Properties
   export let onSuccess: ((event: { detail: { chat: any } }) => void) | undefined = undefined;  
   export let onCancel: (() => void) | undefined = undefined;   
 
-  // State
   let authState = getAuthState ? getAuthState() : { user_id: null };
   let groupName = '';
   let searchQuery = '';
@@ -32,54 +29,46 @@
   let searchInput: HTMLInputElement;
   let selectedIndex = -1;
 
-  // Auto-focus on group name input when component mounts
   onMount(() => {
     if (groupNameInput) {
       groupNameInput.focus();
     }
   });
 
-  // Get a color for avatar placeholders
   function getAvatarColor(name: string | undefined): string {
     const colors = [
-      '#4F46E5', // indigo
-      '#0EA5E9', // sky
-      '#10B981', // emerald
-      '#F59E0B', // amber
-      '#EF4444', // red
-      '#8B5CF6', // violet
-      '#EC4899', // pink
-      '#06B6D4', // cyan
+      '#4F46E5', 
+      '#0EA5E9', 
+      '#10B981', 
+      '#F59E0B', 
+      '#EF4444', 
+      '#8B5CF6', 
+      '#EC4899', 
+      '#06B6D4', 
     ];
-    
-    // Get a deterministic index based on the name
+
     let hash = 0;
     if (!name) name = 'User';
     for (let i = 0; i < name.length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
-    
-    // Convert to positive number and get index
+
     hash = Math.abs(hash);
     const index = hash % colors.length;
-    
+
     return colors[index];
   }
 
-  // Search for users
   async function handleSearch(): Promise<void> {
     if (!searchQuery.trim()) {
       searchResults = [];
       return;
     }
 
-    // Reset selected index when search changes
     selectedIndex = -1;
 
-    // Clear previous timeout
     if (searchTimeout) clearTimeout(searchTimeout);
 
-    // Set a new timeout to avoid too many requests
     searchTimeout = setTimeout(async () => {
       try {
         logger.debug('Searching for users:', { query: searchQuery });
@@ -87,19 +76,17 @@
         errorMessage = '';
         const query = searchQuery.toLowerCase();
 
-        // First attempt: Main search API
         const response = await searchUsers(searchQuery);
-        
+
         logger.debug('Search users API response:', { 
           status: 'success',
           userCount: response.users?.length || 0
         });
-        
-        // Get users from the response
+
         const users = response?.users || [];
-        
+
         if (users && users.length > 0) {
-          // Transform API user results using our utility function
+
           const transformedUsers = transformApiUsers(users);
           searchResults = transformedUsers.filter(user => 
             user.id !== authState.user_id && 
@@ -115,13 +102,12 @@
       } finally {
         isLoading = false;
       }
-    }, 300); // 300ms debounce
+    }, 300); 
   }
 
-  // Handle keyboard navigation in search results
   function handleSearchKeydown(event: KeyboardEvent): void {
     if (!searchResults.length) return;
-    
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       selectedIndex = Math.min(selectedIndex + 1, searchResults.length - 1);
@@ -134,31 +120,27 @@
     }
   }
 
-  // Add user to selected participants
   function addParticipant(user: StandardUser): void {
     if (selectedParticipants.some(p => p.id === user.id)) {
       return;
     }
-    
+
     selectedParticipants = [...selectedParticipants, user];
     searchResults = searchResults.filter(u => u.id !== user.id);
     logger.debug('Added participant', { userId: user.id, username: user.username });
     searchQuery = '';
     selectedIndex = -1;
-    
-    // Focus back on search input for better UX
+
     setTimeout(() => {
       if (searchInput) searchInput.focus();
     }, 0);
   }
 
-  // Remove user from selected participants
   function removeParticipant(userId: string): void {
     selectedParticipants = selectedParticipants.filter(p => p.id !== userId);
     logger.debug('Removed participant:', { userId });
   }
 
-  // Create group chat
   async function createGroupChat(): Promise<void> {
     if (!groupName.trim()) {
       errorMessage = 'Please enter a group name';
@@ -175,30 +157,26 @@
     try {
       isLoading = true;
       errorMessage = '';
-      
-      // Format data for API
+
       const participantIds = selectedParticipants.map(p => p.id);
       const chatData = {
         name: groupName.trim(),
         type: 'group',
         participants: participantIds
       };
-      
+
       logger.debug('Creating group chat:', { 
         name: groupName, 
         participantsCount: participantIds.length 
       });
-      
-      // Call API to create chat
+
       const response: CreateChatResponse = await createChat(chatData);
-      
+
       if (response && response.chat) {
         logger.debug('Group chat created:', { chatId: response.chat.id });
-        
-        // Add the current user into participants for the UI
+
         const fullParticipants = [...selectedParticipants];
-        
-        // Dispatch success event
+
         if (onSuccess) {
           onSuccess({ detail: { 
             chat: {
@@ -214,7 +192,7 @@
             }
           });
         }
-        
+
         toastStore.showToast('Group chat created successfully', 'success');
       } else {
         throw new Error('Invalid response from server');
@@ -229,16 +207,13 @@
     }
   }
 
-  // Handle input changes
   function handleInput(): void {
-    // Clear error when user types
+
     if (errorMessage) errorMessage = '';
-    
-    // Trigger search
+
     handleSearch();
   }
-  
-  // Cancel and close modal
+
   function cancel(): void {
     if (onCancel) {
       onCancel();
@@ -442,7 +417,6 @@
     --error-text: #ef4444;
   }
 
-  /* Light mode variables */
   .group-chat-modal {
     --border-color: #e5e7eb;
     --input-bg: #f9fafb;
@@ -453,7 +427,6 @@
     --error-text: #ef4444;
   }
 
-  /* Highlight selected user in search results */
   .user-item.selected {
     background-color: rgba(59, 130, 246, 0.1);
   }

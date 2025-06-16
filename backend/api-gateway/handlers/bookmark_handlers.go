@@ -1,13 +1,14 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func GetUserBookmarks(c *gin.Context) {

@@ -3,43 +3,41 @@
   import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
   import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
   import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
-  
+
   export let thread: any;
   export let isDarkMode = false;
-  
-  // Format timestamp function for tweet display
+
   function formatTime(timestamp: string | null | undefined): string {
     if (!timestamp) return 'some time ago';
-    
+
     try {
       const date = new Date(timestamp);
-      
-      // Check if date is valid
+
       if (isNaN(date.getTime())) {
         return 'some time ago';
       }
-      
+
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffSec = Math.floor(diffMs / 1000);
       const diffMin = Math.floor(diffSec / 60);
       const diffHours = Math.floor(diffMin / 60);
       const diffDays = Math.floor(diffHours / 24);
-      
+
       if (diffSec < 60) return `${diffSec}s ago`;
       if (diffMin < 60) return `${diffMin}m ago`;
       if (diffHours < 24) return `${diffHours}h ago`;
       if (diffDays < 7) return `${diffDays}d ago`;
-      
+
       return date.toLocaleDateString();
     } catch (error) {
       console.error('Error formatting time:', error, timestamp);
       return 'some time ago';
     }
   }
-  
+
   const dispatch = createEventDispatcher();
-  
+
   function handleClick() {
     dispatch('click', thread);
   }
@@ -62,7 +60,7 @@
             {/if}
           </div>
         </div>
-        
+
         <div class="flex-1 min-w-0">
           <div class="flex items-center">
             <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{thread.name || 'User'}</p>
@@ -72,7 +70,7 @@
               datetime={(() => {
                 try {
                   const date = new Date(thread.created_at);
-                  // Check if date is valid before calling toISOString
+
                   return !isNaN(date.getTime()) ? date.toISOString() : '';
                 } catch (e) {
                   console.error('Invalid date:', thread.created_at);
@@ -84,15 +82,15 @@
               {formatTime(thread.created_at)}
             </time>
           </div>
-        
+
           <p class="mt-1 mb-2 {isDarkMode ? 'text-white' : 'text-black'}">{thread.content}</p>
-          
+
           {#if thread.media && thread.media.length > 0}
             <div class="mb-2 rounded-lg overflow-hidden border dark:border-gray-700">
               <img src={thread.media[0].url} alt="Media attached to thread" class="w-full h-48 object-cover" />
             </div>
           {/if}
-          
+
           <div class="flex mt-2 text-gray-500 dark:text-gray-400 text-sm">
             <div class="flex items-center mr-4">
               <div class="mr-1"><MessageCircleIcon size="16" /></div>
@@ -122,12 +120,12 @@
     display: block;
     width: 100%;
   }
-  
+
   .thread-card-button {
     padding: 1rem;
   }
-  
+
   .thread-content {
     width: 100%;
   }
-</style> 
+</style>

@@ -5,7 +5,7 @@
   import type { IDateOfBirth, ICustomWindow } from '../../interfaces/IAuth';
 
   const { theme } = useTheme();
-  
+
   $: isDarkMode = $theme === 'dark';
 
   export let name = "";
@@ -21,13 +21,11 @@
   export let securityAnswer = "";
   export let subscribeToNewsletter = false;
 
-  // Form options
   export let months: string[] = [];
   export let days: string[] = [];
   export let years: string[] = [];
   export let securityQuestions: string[] = [];
 
-  // Server-side validation errors
   export let nameError = "";
   export let usernameError = "";
   export let emailError = "";
@@ -40,19 +38,16 @@
   export let profilePictureError = "";
   export let bannerError = "";
 
-  // Form submission and auth handlers
   export let onSubmit: (token: string | null) => void; 
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
-  
-  // reCAPTCHA variables
+
   let recaptchaToken: string | null = null;
   let recaptchaWrapper: ReCaptchaWrapper;
-  
-  // Image preview URLs
+
   let profilePicturePreview: string | null = null;
   let bannerPreview: string | null = null;
-  
+
   function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
     recaptchaToken = event.detail.token;
   }
@@ -65,28 +60,25 @@
     recaptchaToken = null;
   }
 
-  // Check if we're in development mode
   const isDevelopment = import.meta.env.DEV;
 
   async function triggerSubmit() {
-    // In development mode, just submit with a development placeholder token
+
     if (isDevelopment) {
       onSubmit('dev-mode-token');
       return;
     }
-    
-    // Use reCAPTCHA token if available
+
     onSubmit(recaptchaToken);
   }
 
-  // Type-safe event handlers for file inputs with preview generation
   function handleProfilePictureChange(e: Event) {
     const target = e.target as HTMLInputElement;
     const file = target.files?.[0] || null;
-    
+
     if (file) {
       profilePicture = file;
-      // Create object URL for preview
+
       profilePicturePreview = URL.createObjectURL(file);
     } else {
       profilePicture = null;
@@ -97,20 +89,19 @@
   function handleBannerChange(e: Event) {
     const target = e.target as HTMLInputElement;
     const file = target.files?.[0] || null;
-    
+
     if (file) {
       banner = file;
-      // Create object URL for preview
+
       bannerPreview = URL.createObjectURL(file);
     } else {
       banner = null;
       bannerPreview = null;
     }
   }
-  
-  // Clean up object URLs when component is destroyed
+
   import { onDestroy } from 'svelte';
-  
+
   onDestroy(() => {
     if (profilePicturePreview) URL.revokeObjectURL(profilePicturePreview);
     if (bannerPreview) URL.revokeObjectURL(bannerPreview);
@@ -263,7 +254,7 @@
   <fieldset>
     <legend class="auth-label">Date of birth <span class="text-red-500">*</span></legend>
     <p class="auth-helper-text mb-2">This will not be shown publicly. Confirm your own age, even if this account is for a business, a pet, or something else.</p>
-    
+
     <div class="auth-dob-container">
       <div class="auth-dob-select-group" role="group" aria-labelledby="dob-label">
         <div>
@@ -495,7 +486,7 @@
     display: block;
     border-radius: var(--radius-md);
   }
-  
+
   .aycom-auth-banner-preview {
     height: 100px;
   }
@@ -522,8 +513,7 @@
   .aycom-auth-remove-img:hover {
     background-color: rgba(0, 0, 0, 0.7);
   }
-  
-  /* Enhanced error styling */
+
   :global(.auth-error-message) {
     color: #dc2626;
     font-size: 0.85rem;
@@ -532,12 +522,12 @@
     display: flex;
     align-items: center;
   }
-  
+
   :global(.auth-error-message::before) {
     content: "⚠️";
     margin-right: 0.25rem;
   }
-  
+
   :global(.auth-input-error) {
     border-color: #dc2626 !important;
     background-color: rgba(255, 0, 0, 0.03);

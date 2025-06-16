@@ -3,10 +3,10 @@ package repository
 import (
 	"errors"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
 )
 
 type HashtagRepository interface {

@@ -1,10 +1,11 @@
 package repository
 
 import (
-	"aycom/backend/services/user/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/user/model"
+
 )
 
 type BlockRepositoryInterface interface {

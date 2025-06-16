@@ -51,43 +51,27 @@ function createWebSocketStore() {
 
   const buildWebSocketUrl = (chatId: string) => {
     try {
-      // Get the auth token
       const token = getAuthToken();
       if (!token) {
         throw new Error('No authentication token available');
       }
+
+      // Derive WebSocket URL from the configured API base URL for consistency
+      const apiUrl = new URL(appConfig.api.baseUrl);
+      const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostname = apiUrl.hostname;
+      const port = apiUrl.port || (protocol === 'wss:' ? '443' : '80');
       
-      // Determine the correct WebSocket URL based on environment
-      let protocol: string;
-      let hostname: string;
-      let port: string;
+      // The path for the WebSocket connection
+      const wsPath = `/api/v1/chats/${chatId}/ws`;
+
+      const wsUrl = `${protocol}//${hostname}:${port}${wsPath}?token=${encodeURIComponent(token)}`;
       
-      if (typeof window !== 'undefined') {
-        // Check if we're running in Docker or local development
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        
-        if (isLocalhost) {
-          // Local development - connect directly to host
-          protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          hostname = window.location.hostname;
-          port = '8083'; // API gateway port mapping
-        } else {
-          // Production or Docker environment
-          protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          hostname = window.location.hostname;
-          port = window.location.port || (protocol === 'wss:' ? '443' : '80');
-        }
-      } else {
-        throw new Error('Window object not available');
-      }
-      
-      // Build the WebSocket URL matching the backend route: /api/v1/chats/:id/ws
-      const wsUrl = `${protocol}//${hostname}:${port}/api/v1/chats/${chatId}/ws?token=${encodeURIComponent(token)}`;
-      
-      logger.info(`Building WebSocket URL: ${wsUrl}`);
+      logger.info(`Built WebSocket URL: ${wsUrl}`);
       return wsUrl;
     } catch (e) {
-      logger.error('Error building WebSocket URL:', e);
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      logger.error(`Error building WebSocket URL: ${errorMessage}`);
       throw e;
     }
   };
@@ -380,28 +364,37 @@ function createWebSocketStore() {
       
       try {
         const ws = state.chatConnections[chatId];
-        const serializedMessage = JSON.stringify(message);
+        // Ensure the message has the correct structure for WebSocket
+        const wsMessage = {
+          type: message.type || 'text',
+          content: message.content || '',
+          user_id: message.user_id || message.sender_id || '',
+          sender_id: message.sender_id || message.user_id || '',
+          chat_id: chatId,
+          timestamp: message.timestamp || new Date().toISOString(),
+          message_id: message.message_id || `ws-${Date.now()}`,
+          is_edited: message.is_edited || false,
+          is_deleted: message.is_deleted || false,
+          is_read: message.is_read || false
+        };
+        
+        const serializedMessage = JSON.stringify(wsMessage);
         ws.send(serializedMessage);
-        logger.debug(`Message sent to chat ${chatId}:`, message);
+        logger.debug(`WebSocket message sent to chat ${chatId}:`, wsMessage);
         
-        // Log detailed information for debugging
-        logger.info(`WebSocket message sent to chat ${chatId}:`, {
-          type: message.type,
-          content: message.content ? message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '') : '',
-          user_id: message.user_id,
-          message_id: message.message_id
-        });
-        
-        return state;
+        return {
+          ...state,
+          lastError: null
+        };
       } catch (e) {
         logger.error(`Error sending WebSocket message to chat ${chatId}:`, e);
         
-        // Schedule reconnection
+        // Schedule reconnection on error
         setTimeout(() => connect(chatId), 1000);
         
         return {
           ...state,
-          lastError: `Failed to send message to chat ${chatId}: ${e instanceof Error ? e.message : 'Unknown error'}`
+          lastError: `Failed to send message: ${e instanceof Error ? e.message : 'Unknown error'}`
         };
       }
     });
@@ -550,8 +543,13 @@ const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEve
       chatMessage.timestamp = new Date(chatMessage.timestamp * 1000).toISOString();
     }
     
-    // Log the processed message
-    logger.debug(`[WebSocket] Processed message for chat ${chatId}`);
+    // Log the processed message with more detail
+    logger.debug(`[WebSocket] Processed message for chat ${chatId}:`, {
+      type: chatMessage.type,
+      content: chatMessage.content?.substring(0, 50),
+      sender_id: chatMessage.sender_id,
+      message_id: chatMessage.message_id
+    });
     
     // Notify all registered handlers
     if (messageHandlers.length === 0) {
@@ -560,10 +558,13 @@ const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEve
     
     messageHandlers.forEach(handler => {
       try {
-        logger.debug(`[WebSocket] Calling message handler for chat ${chatId}`);
+        logger.debug(`[WebSocket] Calling message handler for chat ${chatId}`, {
+          handlerCount: messageHandlers.length,
+          messageType: chatMessage.type
+        });
         handler(chatMessage);
       } catch (handlerError) {
-        logger.debug(`Handler error occurred`);
+        logger.error(`[WebSocket] Error in message handler for chat ${chatId}:`, handlerError);
       }
     });
   } catch (e) {

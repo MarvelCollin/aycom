@@ -1,6 +1,7 @@
 package service
 
 import (
+	"aycom/backend/proto/thread"
 	"context"
 	"errors"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
-	"aycom/backend/proto/thread"
 	"aycom/backend/services/thread/model"
 	"aycom/backend/services/thread/repository"
 )

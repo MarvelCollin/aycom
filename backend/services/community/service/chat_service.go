@@ -121,7 +121,6 @@ func NewChatService(
 	}
 }
 
-// Conversion functions for DTOs
 func fromModelChatDTO(dto *model.ChatDTO) *community.Chat {
 	return &community.Chat{
 		Id:        dto.ID,
@@ -147,10 +146,8 @@ func toModelChatDTO(chat *community.Chat) *model.ChatDTO {
 func (s *chatService) CreateChat(name string, description string, creatorID string, isGroupChat bool, participantIDs []string) (*community.Chat, error) {
 	log.Printf("Creating chat: name=%s, creator=%s, isGroup=%v, participants=%v", name, creatorID, isGroupChat, participantIDs)
 
-	// Generate a new UUID for the chat
 	chatID := uuid.New().String()
 
-	// Create the chat
 	now := time.Now()
 	chat := &model.ChatDTO{
 		ID:          chatID,
@@ -166,23 +163,20 @@ func (s *chatService) CreateChat(name string, description string, creatorID stri
 		return nil, fmt.Errorf("failed to create chat: %v", err)
 	}
 
-	// Add participants
 	for _, userID := range participantIDs {
 		participant := &model.ParticipantDTO{
 			ChatID:   chatID,
 			UserID:   userID,
-			IsAdmin:  userID == creatorID, // Creator is admin
+			IsAdmin:  userID == creatorID, 
 			JoinedAt: now,
 		}
 
 		if err := s.participantRepo.AddParticipant(participant); err != nil {
 			log.Printf("Error adding participant %s to chat %s: %v", userID, chatID, err)
-			// We don't return error here to avoid leaving chat with no participants
-			// In production, this should use transactions
+
 		}
 	}
 
-	// Return the created chat
 	return &community.Chat{
 		Id:        chatID,
 		Name:      name,
@@ -201,7 +195,7 @@ func (s *chatService) ListChats(userID string, limit, offset int) ([]*community.
 
 	protoChats := make([]*community.Chat, 0, len(chats))
 	for _, chat := range chats {
-		// Skip deleted chats
+
 		isDeleted, err := s.deletedChatRepo.IsDeletedForUser(chat.ID, userID)
 		if err != nil {
 			log.Printf("Error checking if chat %s is deleted for user %s: %v", chat.ID, userID, err)
@@ -245,13 +239,12 @@ func (s *chatService) ListParticipants(chatID string, limit, offset int) ([]*com
 }
 
 func (s *chatService) AddParticipant(chatID, userID, addedBy string) error {
-	// Check if the chat exists
+
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
 		return fmt.Errorf("chat not found: %v", err)
 	}
 
-	// Check if the adder is an admin
 	isAdmin, err := s.isUserChatAdmin(chatID, addedBy)
 	if err != nil {
 		return fmt.Errorf("failed to check admin status: %v", err)
@@ -261,7 +254,6 @@ func (s *chatService) AddParticipant(chatID, userID, addedBy string) error {
 		return fmt.Errorf("only admins can add participants")
 	}
 
-	// Add the participant
 	participant := &model.ParticipantDTO{
 		ChatID:   chatID,
 		UserID:   userID,
@@ -277,13 +269,12 @@ func (s *chatService) AddParticipant(chatID, userID, addedBy string) error {
 }
 
 func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error {
-	// Check if the chat exists
+
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
 		return fmt.Errorf("chat not found: %v", err)
 	}
 
-	// Check if the remover is an admin
 	isAdmin, err := s.isUserChatAdmin(chatID, removedBy)
 	if err != nil {
 		return fmt.Errorf("failed to check admin status: %v", err)
@@ -293,7 +284,6 @@ func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error 
 		return fmt.Errorf("only admins can remove other participants")
 	}
 
-	// Remove the participant
 	if err := s.participantRepo.RemoveParticipant(chatID, userID); err != nil {
 		return fmt.Errorf("failed to remove participant: %v", err)
 	}
@@ -304,19 +294,16 @@ func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error 
 func (s *chatService) SendMessage(chatID string, userID string, content string) (string, error) {
 	log.Printf("Sending message: ChatID=%s, UserID=%s", chatID, userID)
 
-	// Validate chat ID
 	if _, err := uuid.Parse(chatID); err != nil {
 		log.Printf("Invalid chat ID: %s", chatID)
 		return "", fmt.Errorf("invalid chat ID: %v", err)
 	}
 
-	// Validate user ID
 	if _, err := uuid.Parse(userID); err != nil {
 		log.Printf("Invalid user ID: %s", userID)
 		return "", fmt.Errorf("invalid user ID: %v", err)
 	}
 
-	// Check if user is a participant in the chat
 	isParticipant, err := s.participantRepo.IsUserInChat(chatID, userID)
 	if err != nil {
 		log.Printf("Error checking if user is a participant: %v", err)
@@ -328,7 +315,6 @@ func (s *chatService) SendMessage(chatID string, userID string, content string) 
 		return "", fmt.Errorf("user is not a participant in this chat")
 	}
 
-	// Create the message
 	messageID := uuid.New()
 	now := time.Now()
 
@@ -340,7 +326,6 @@ func (s *chatService) SendMessage(chatID string, userID string, content string) 
 		Timestamp: now,
 	}
 
-	// Save the message with error handling
 	if err := s.messageRepo.SaveMessage(message); err != nil {
 		log.Printf("Failed to save message: %v", err)
 		return "", fmt.Errorf("failed to save message: %v", err)
@@ -358,7 +343,7 @@ func (s *chatService) GetMessages(chatID string, limit, offset int) ([]*communit
 
 	protoMessages := make([]*community.Message, len(messages))
 	for i, message := range messages {
-		// Create a proto message with all relevant fields
+
 		protoMessage := &community.Message{
 			Id:               message.ID,
 			ChatId:           message.ChatID,
@@ -372,7 +357,6 @@ func (s *chatService) GetMessages(chatID string, limit, offset int) ([]*communit
 			DeletedForAll:    message.DeletedForAll,
 		}
 
-		// Handle optional fields with null checks
 		if message.UnsentAt != nil {
 			protoMessage.UnsentAt = timestamppb.New(*message.UnsentAt)
 		}
@@ -387,18 +371,16 @@ func (s *chatService) GetMessages(chatID string, limit, offset int) ([]*communit
 }
 
 func (s *chatService) DeleteMessage(chatID, messageID, userID string) error {
-	// Get the message
+
 	message, err := s.messageRepo.FindMessageByID(messageID)
 	if err != nil {
 		return fmt.Errorf("failed to find message: %v", err)
 	}
 
-	// Check if the message belongs to the chat
 	if message.ChatID != chatID {
 		return fmt.Errorf("message does not belong to this chat")
 	}
 
-	// Check if the user is the sender or an admin
 	if message.SenderID != userID {
 		isAdmin, err := s.isUserChatAdmin(chatID, userID)
 		if err != nil {
@@ -410,7 +392,6 @@ func (s *chatService) DeleteMessage(chatID, messageID, userID string) error {
 		}
 	}
 
-	// Delete the message
 	if err := s.messageRepo.DeleteMessage(messageID); err != nil {
 		return fmt.Errorf("failed to delete message: %v", err)
 	}
@@ -419,23 +400,20 @@ func (s *chatService) DeleteMessage(chatID, messageID, userID string) error {
 }
 
 func (s *chatService) UnsendMessage(chatID, messageID, userID string) error {
-	// Get the message
+
 	message, err := s.messageRepo.FindMessageByID(messageID)
 	if err != nil {
 		return fmt.Errorf("failed to find message: %v", err)
 	}
 
-	// Check if the message belongs to the chat
 	if message.ChatID != chatID {
 		return fmt.Errorf("message does not belong to this chat")
 	}
 
-	// Check if the user is the sender
 	if message.SenderID != userID {
 		return fmt.Errorf("only the sender can unsend a message")
 	}
 
-	// Unsend the message
 	if err := s.messageRepo.UnsendMessage(messageID); err != nil {
 		return fmt.Errorf("failed to unsend message: %v", err)
 	}

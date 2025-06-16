@@ -1,6 +1,7 @@
 package service
 
 import (
+	userpb "aycom/backend/proto/user"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,17 +11,16 @@ import (
 	"strings"
 	"time"
 
-	userpb "aycom/backend/proto/user"
-	"aycom/backend/services/user/model"
-	"aycom/backend/services/user/repository"
-	"aycom/backend/services/user/utils"
-
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/repository"
+	"aycom/backend/services/user/utils"
 )
 
 type ServiceFollowUserResponse struct {
@@ -70,7 +70,7 @@ type userService struct {
 }
 
 func NewUserService(repo repository.UserRepository) UserService {
-	// Get the DB instance from the repository
+
 	var db *gorm.DB
 	if repoWithDB, ok := repo.(*repository.PostgresUserRepository); ok {
 		db = repoWithDB.GetDB()
@@ -243,7 +243,6 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 		updated = true
 	}
 
-	// Check if the is_private field is explicitly set in the request
 	if req.GetIsPrivate() != user.IsPrivate {
 		user.IsPrivate = req.GetIsPrivate()
 		updated = true
@@ -287,7 +286,6 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 			log.Printf("User %s admin status updated from %v to %v", req.UserId, prevStatus, user.IsAdmin)
 		}
 
-		// Handle password update
 		if req.User.Password != "" {
 			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.User.Password), bcrypt.DefaultCost)
 			if err != nil {
@@ -408,7 +406,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		return status.Errorf(codes.InvalidArgument, "Invalid followed ID format: %v", err)
 	}
 
-	// Verify users exist
 	follower, err := s.repo.FindUserByID(req.FollowerID)
 	if err != nil {
 		log.Printf("FollowUser: Follower user with ID %s not found: %v", req.FollowerID, err)
@@ -424,7 +421,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	log.Printf("FollowUser: User %s (%s) is attempting to follow user %s (%s)",
 		follower.Username, req.FollowerID, followed.Username, req.FollowedID)
 
-	// Check if already following
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("FollowUser: Error checking follow existence: %v", err)
@@ -443,7 +439,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		UpdatedAt:  time.Now(),
 	}
 
-	// Validate users exist before starting transaction to avoid errors
 	var userExists bool
 	userExists, err = s.repo.UserExists(req.FollowerID)
 	if err != nil {
@@ -465,21 +460,18 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
 	}
 
-	// Handle the transaction with proper error handling - each operation is critical
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
-		// Step 1: Create the follow relationship
+
 		if err := tx.CreateFollow(follow); err != nil {
 			log.Printf("FollowUser: Failed to create follow relationship: %v", err)
 			return fmt.Errorf("failed to create follow relationship: %w", err)
 		}
 
-		// Step 2: Increment followed user's follower count
 		if err := tx.IncrementFollowerCount(req.FollowedID); err != nil {
 			log.Printf("FollowUser: Failed to increment follower count: %v", err)
 			return fmt.Errorf("failed to increment follower count: %w", err)
 		}
 
-		// Step 3: Increment follower's following count
 		if err := tx.IncrementFollowingCount(req.FollowerID); err != nil {
 			log.Printf("FollowUser: Failed to increment following count: %v", err)
 			return fmt.Errorf("failed to increment following count: %w", err)
@@ -516,7 +508,6 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Errorf(codes.InvalidArgument, "Invalid followed ID format: %v", err)
 	}
 
-	// Verify users exist
 	follower, err := s.repo.FindUserByID(req.FollowerID)
 	if err != nil {
 		log.Printf("UnfollowUser: Follower user with ID %s not found: %v", req.FollowerID, err)
@@ -532,7 +523,6 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 	log.Printf("UnfollowUser: User %s (%s) is attempting to unfollow user %s (%s)",
 		follower.Username, req.FollowerID, followed.Username, req.FollowedID)
 
-	// Check if follow relationship exists
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("UnfollowUser: Error checking follow existence: %v", err)
@@ -544,7 +534,6 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return nil
 	}
 
-	// Validate users exist before starting transaction to avoid errors
 	var userExists bool
 	userExists, err = s.repo.UserExists(req.FollowerID)
 	if err != nil {
@@ -566,21 +555,18 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
 	}
 
-	// Handle the transaction with proper error handling - each operation is critical
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
-		// Step 1: Delete the follow relationship
+
 		if err := tx.DeleteFollow(followerUUID, followedUUID); err != nil {
 			log.Printf("UnfollowUser: Failed to delete follow relationship: %v", err)
 			return fmt.Errorf("failed to delete follow relationship: %w", err)
 		}
 
-		// Step 2: Decrement followed user's follower count
 		if err := tx.DecrementFollowerCount(req.FollowedID); err != nil {
 			log.Printf("UnfollowUser: Failed to decrement follower count: %v", err)
 			return fmt.Errorf("failed to decrement follower count: %w", err)
 		}
 
-		// Step 3: Decrement follower's following count
 		if err := tx.DecrementFollowingCount(req.FollowerID); err != nil {
 			log.Printf("UnfollowUser: Failed to decrement following count: %v", err)
 			return fmt.Errorf("failed to decrement following count: %w", err)
@@ -637,26 +623,23 @@ func (s *userService) GetFollowing(ctx context.Context, req *model.GetFollowingR
 }
 
 func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error) {
-	// Extract filter from metadata if it exists
+
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok && len(md["filter"]) > 0 {
 		req.Filter = md["filter"][0]
 		log.Printf("Got filter from metadata: %s", req.Filter)
 	}
 
-	// If query is empty string (not nil) and filter is provided, that's valid
 	if req.Query == "" && req.Filter == "" {
 		log.Printf("SearchUsers error: Both query and filter are empty")
 		return nil, 0, status.Error(codes.InvalidArgument, "Search query or filter is required")
 	}
 
-	// Set a default filter if not provided
 	if req.Filter == "" {
 		req.Filter = "all"
 		log.Printf("Using default filter: %s", req.Filter)
 	}
 
-	// Validate query length to prevent performance issues with extremely long search terms
 	if req.Query != "" {
 		const MAX_QUERY_LENGTH = 50
 		if len(req.Query) > MAX_QUERY_LENGTH {
@@ -665,7 +648,6 @@ func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersReq
 		}
 	}
 
-	// Log the search request for debugging
 	log.Printf("Searching users with query: '%s', filter: '%s', page: %d, limit: %d",
 		req.Query, req.Filter, req.Page, req.Limit)
 
@@ -880,17 +862,14 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 		return nil, status.Error(codes.InvalidArgument, "Face photo URL is required")
 	}
 
-	// Log the length of the face photo URL for debugging
 	log.Printf("CreatePremiumRequest: FacePhotoURL length: %d", len(req.FacePhotoUrl))
 
-	// Check if there's already a pending or approved premium request for this user
 	userIdUUID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		log.Printf("CreatePremiumRequest: Invalid user ID format: %v", err)
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID format")
 	}
 
-	// Check if user exists
 	user, err := s.repo.FindUserByID(req.UserId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -903,7 +882,6 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 
 	log.Printf("CreatePremiumRequest: Found user with ID %s and username %s", user.ID, user.Username)
 
-	// Check directly with a more efficient query in the database
 	var existingRequestCount int64
 	err = s.db.Model(&model.PremiumRequest{}).
 		Where("user_id = ? AND (status = 'pending' OR status = 'approved')", userIdUUID).
@@ -919,21 +897,17 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 		return nil, status.Error(codes.AlreadyExists, "User already has a pending or approved premium request")
 	}
 
-	// Encrypt identity card number for security
 	encryptedIDNumber, err := encryptSensitiveData(req.IdentityCardNumber)
 	if err != nil {
 		log.Printf("CreatePremiumRequest: Error encrypting identity card number: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to secure sensitive data")
 	}
 
-	// For base64 image, we need to handle it carefully
-	// If the string is too long, we might want to truncate or process it
 	facePhotoURL := req.FacePhotoUrl
-	if len(facePhotoURL) > 1000000 { // If larger than ~1MB
+	if len(facePhotoURL) > 1000000 {
 		log.Printf("CreatePremiumRequest: Warning - face photo URL is very large (%d bytes), this might cause DB issues", len(facePhotoURL))
 	}
 
-	// Create the premium request with explicit ID
 	premiumRequestID := uuid.New()
 	premiumRequest := &model.PremiumRequest{
 		ID:                 premiumRequestID,
@@ -946,14 +920,12 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 		UpdatedAt:          time.Now(),
 	}
 
-	// Use a transaction to create the request
 	tx := s.db.Begin()
 	if tx.Error != nil {
 		log.Printf("CreatePremiumRequest: Failed to begin transaction: %v", tx.Error)
 		return nil, status.Error(codes.Internal, "Database error")
 	}
 
-	// Execute within transaction
 	err = tx.Create(premiumRequest).Error
 	if err != nil {
 		tx.Rollback()
@@ -961,7 +933,6 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 		return nil, status.Error(codes.Internal, "Failed to create premium request: "+err.Error())
 	}
 
-	// Commit transaction
 	if err = tx.Commit().Error; err != nil {
 		log.Printf("CreatePremiumRequest: Error committing transaction: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to commit premium request")
@@ -974,12 +945,8 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 	}, nil
 }
 
-// Helper function to encrypt sensitive data
 func encryptSensitiveData(data string) (string, error) {
-	// In a production environment, use proper encryption with secure key management
-	// This is a simple placeholder for demonstration purposes
 
-	// Hash the data for storage
 	hashedBytes := sha256.Sum256([]byte(data))
 	hashedString := hex.EncodeToString(hashedBytes[:])
 

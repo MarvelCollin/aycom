@@ -4,10 +4,8 @@
   import { isAuthenticated } from '../utils/auth';
   import { writable } from 'svelte/store';
 
-  // Create page store
   export const currentPage = writable({ route: '/', userProfileId: '', communityId: '', threadId: '' });
 
-  // Import pages
   import Landing from '../pages/Landing.svelte';
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
@@ -38,7 +36,6 @@
     const fullPath = window.location.pathname;
     console.log('Handling navigation to:', fullPath);
 
-    // Extract user profile ID from URL
     const userProfileMatch = fullPath.match(/^\/user\/([^\/]+)$/);
     if (userProfileMatch) {
       userProfileId = userProfileMatch[1];
@@ -48,7 +45,6 @@
       return;
     }
 
-    // Extract community ID from URL 
     const communityDetailMatch = fullPath.match(/^\/communities\/([^\/]+)$/);
     if (communityDetailMatch) {
       communityId = communityDetailMatch[1];
@@ -58,7 +54,6 @@
       return;
     }
 
-    // Extract thread ID from URL
     const threadDetailMatch = fullPath.match(/^\/thread\/([^\/]+)$/);
     if (threadDetailMatch) {
       threadId = threadDetailMatch[1];
@@ -68,11 +63,9 @@
       return;
     }
 
-    // Handle normal routes
     route = fullPath;
     updatePageStore();
 
-    // Check authentication for protected routes
     authStatus = isAuthenticated();
     console.log(`Authentication status: ${authStatus}`);
 
@@ -109,12 +102,10 @@
     }
   }
 
-  // Update the page store
   function updatePageStore() {
     currentPage.set({ route, userProfileId, communityId, threadId });
   }
 
-  // Type definition for the custom navigation event
   interface NavigateEvent {
     communityId?: string;
     threadId?: string;
@@ -123,28 +114,24 @@
 
   onMount(() => {
     window.addEventListener('popstate', handleNavigation);
-    
-    // Define type-safe event handler for 'navigate' custom event
+
     function handleNavigateEvent(e: Event) {
       const event = e as CustomEvent<NavigateEvent>;
       console.log('Custom navigation event received:', event.detail);
-      
-      // If the event includes a communityId, set it directly
+
       if (event.detail && event.detail.communityId) {
         communityId = event.detail.communityId;
       }
-      
-      // If the event includes a threadId, set it directly
+
       if (event.detail && event.detail.threadId) {
         threadId = event.detail.threadId;
       }
-      
+
       handleNavigation();
     }
-    
-    // Add the event listener
+
     window.addEventListener('navigate', handleNavigateEvent as EventListener);
-    
+
     handleNavigation();
 
     document.body.addEventListener('click', (e) => {

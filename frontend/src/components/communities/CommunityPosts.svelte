@@ -4,7 +4,6 @@
   import Button from '../common/Button.svelte';
   import MessageSquareIcon from 'svelte-feather-icons/src/icons/MessageSquareIcon.svelte';
 
-  // Types
   interface Thread {
     id: string;
     content?: string;
@@ -15,13 +14,11 @@
     [key: string]: any;
   }
 
-  // Props
   export let threads: Thread[] = [];
   export let isMember: boolean = false;
   export let canPostInCommunity: boolean = false;
   export let communityIsApproved: boolean = true;
 
-  // Event dispatcher
   const dispatch = createEventDispatcher();
 
   function handleThreadClick(event) {
@@ -42,7 +39,7 @@
         />
       {/each}
     </div>
-    
+
     {#if canPostInCommunity}
       <div class="create-post-floating">
         <Button variant="primary" icon={MessageSquareIcon} on:click={handleCreatePost}>

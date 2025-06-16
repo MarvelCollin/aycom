@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"aycom/backend/services/community/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
 )
 
 type CommunityRuleRepository interface {

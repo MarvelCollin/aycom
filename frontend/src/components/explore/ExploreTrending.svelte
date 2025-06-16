@@ -3,44 +3,38 @@
   import { useTheme } from '../../hooks/useTheme';
   import type { ITrend } from '../../interfaces/ITrend';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  
+
   const logger = createLoggerWithPrefix('ExploreTrending');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
-  
-  // Props
+
   export let trends: ITrend[] = [];
   export let isTrendsLoading = false;
-  
-  // Sample trends for empty state
+
   let sampleTrends = [
     { title: 'programming', category: 'Technology', post_count: 125 },
     { title: 'design', category: 'Creative', post_count: 98 },
     { title: 'webdev', category: 'Technology', post_count: 87 }
   ];
-  
-  // Animation timing
+
   let showSampleTrends = false;
-  
+
   onMount(() => {
-    // Show sample trends after a delay if no real trends are available
+
     if (trends.length === 0 && !isTrendsLoading) {
       setTimeout(() => {
         showSampleTrends = true;
       }, 500);
     }
   });
-  
-  // Handle hashtag click - pass the hashtag to the parent component
+
   function handleHashtagClick(hashtag: string) {
     logger.debug('Hashtag clicked', { hashtag });
     dispatch('hashtagClick', hashtag);
   }
-  
-  // Log when trends are loaded
+
   $: {
     if (!isTrendsLoading) {
       if (trends.length > 0) {
@@ -55,7 +49,7 @@
 
 <div class="twitter-trends-container {isDarkMode ? 'twitter-trends-container-dark' : ''}">
   <h2 class="trends-header">What's happening</h2>
-  
+
   {#if isTrendsLoading}
     <div class="trends-loading">
       <div class="trend-skeleton"></div>
@@ -93,7 +87,7 @@
       </div>
       <h3 class="trends-empty-title">No trends available</h3>
       <p class="trends-empty-text">Check back soon for trending topics</p>
-      
+
       {#if showSampleTrends}
         <div class="sample-trends">
           <h4 class="sample-trends-title">Try these topics</h4>
@@ -119,11 +113,11 @@
     border-radius: 16px;
     overflow: hidden;
   }
-  
+
   .twitter-trends-container-dark {
     background-color: var(--dark-bg-primary);
   }
-  
+
   .trends-header {
     padding: 12px 16px;
     font-size: 20px;
@@ -132,17 +126,17 @@
     margin: 0;
     color: var(--text-primary);
   }
-  
+
   .twitter-trends-container-dark .trends-header {
     color: var(--dark-text-primary);
     border-bottom-color: var(--dark-border-color);
   }
-  
+
   .trends-list {
     display: flex;
     flex-direction: column;
   }
-  
+
   .trend-item {
     display: flex;
     align-items: center;
@@ -158,65 +152,65 @@
     transition: background-color 0.2s ease;
     width: 100%;
   }
-  
+
   .trend-item:hover {
     background-color: var(--hover-bg);
   }
-  
+
   .twitter-trends-container-dark .trend-item {
     border-bottom-color: var(--dark-border-color);
   }
-  
+
   .twitter-trends-container-dark .trend-item:hover {
     background-color: var(--dark-hover-bg);
   }
-  
+
   .trend-content {
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
-  
+
   .trend-category {
     font-size: 13px;
     color: var(--text-secondary);
   }
-  
+
   .twitter-trends-container-dark .trend-category {
     color: var(--dark-text-secondary);
   }
-  
+
   .trend-tag {
     font-size: 15px;
     font-weight: 700;
     color: var(--text-primary);
   }
-  
+
   .twitter-trends-container-dark .trend-tag {
     color: var(--dark-text-primary);
   }
-  
+
   .trend-metrics {
     font-size: 13px;
     color: var(--text-secondary);
   }
-  
+
   .twitter-trends-container-dark .trend-metrics {
     color: var(--dark-text-secondary);
   }
-  
+
   .trend-more {
     color: var(--text-secondary);
   }
-  
+
   .twitter-trends-container-dark .trend-more {
     color: var(--dark-text-secondary);
   }
-  
+
   .trends-loading {
     padding: 16px;
   }
-  
+
   .trend-skeleton {
     height: 68px;
     background: linear-gradient(
@@ -229,7 +223,7 @@
     margin-bottom: 12px;
     animation: pulse 1.5s ease-in-out infinite;
   }
-  
+
   .twitter-trends-container-dark .trend-skeleton {
     background: linear-gradient(
       90deg,
@@ -238,7 +232,7 @@
       var(--dark-bg-tertiary) 100%
     );
   }
-  
+
   @keyframes pulse {
     0% {
       opacity: 0.6;
@@ -250,64 +244,64 @@
       opacity: 0.6;
     }
   }
-  
+
   .trends-empty {
     padding: 32px 16px;
     text-align: center;
   }
-  
+
   .trends-empty-icon {
     color: var(--text-secondary);
     margin-bottom: 16px;
   }
-  
+
   .twitter-trends-container-dark .trends-empty-icon {
     color: var(--dark-text-secondary);
   }
-  
+
   .trends-empty-title {
     font-size: 18px;
     font-weight: 700;
     color: var(--text-primary);
     margin: 0 0 8px;
   }
-  
+
   .twitter-trends-container-dark .trends-empty-title {
     color: var(--dark-text-primary);
   }
-  
+
   .trends-empty-text {
     font-size: 15px;
     color: var(--text-secondary);
     margin: 0;
   }
-  
+
   .twitter-trends-container-dark .trends-empty-text {
     color: var(--dark-text-secondary);
   }
-  
+
   .sample-trends {
     margin-top: 24px;
   }
-  
+
   .sample-trends-title {
     font-size: 16px;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0 0 12px;
   }
-  
+
   .twitter-trends-container-dark .sample-trends-title {
     color: var(--dark-text-primary);
   }
-  
+
   .sample-trends-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     justify-content: center;
   }
-  
+
   .sample-trend-tag {
     background-color: var(--color-primary-bg);
     color: var(--color-primary);
@@ -319,8 +313,8 @@
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  
+
   .sample-trend-tag:hover {
     background-color: var(--hover-primary);
   }
-</style> 
+</style>

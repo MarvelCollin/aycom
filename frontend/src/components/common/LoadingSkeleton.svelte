@@ -1,7 +1,6 @@
 <script lang="ts">
   import { useTheme } from '../../hooks/useTheme';
 
-  // Props
   export let type: 'search-results' | 'trends' | 'user-profile' | 'media' | 'profile' | 'threads' | 'community' = 'search-results';
   export let count: number = 5;
 
@@ -54,7 +53,7 @@
   <div class="animate-pulse">
     <!-- Banner -->
     <div class="w-full h-48 bg-gray-200 dark:bg-gray-700"></div>
-    
+
     <!-- Profile header -->
     <div class="flex justify-between px-4 -mt-16 relative z-10">
       <div class="w-32 h-32 rounded-full border-4 border-white dark:border-black bg-gray-200 dark:bg-gray-700"></div>
@@ -62,7 +61,7 @@
         <div class="w-24 h-10 rounded-full bg-gray-200 dark:bg-gray-700"></div>
       </div>
     </div>
-    
+
     <!-- Profile info -->
     <div class="p-4 mt-2">
       <div class="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-2"></div>
@@ -74,7 +73,7 @@
         <div class="h-5 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
       </div>
     </div>
-    
+
     <!-- Tabs -->
     <div class="flex border-b border-gray-200 dark:border-gray-800">
       {#each Array(4) as _, i}
@@ -96,14 +95,14 @@
             <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
           </div>
         </div>
-        
+
         <!-- Content -->
         <div class="mb-3">
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
         </div>
-        
+
         <!-- Actions -->
         <div class="flex justify-between mt-4">
           {#each Array(4) as _, i}
@@ -125,14 +124,14 @@
             <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
           </div>
         </div>
-        
+
         <!-- Community description -->
         <div class="mb-4">
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-2"></div>
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
         </div>
-        
+
         <!-- Community stats -->
         <div class="flex justify-between">
           <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
@@ -152,8 +151,8 @@
       opacity: 0.7;
     }
   }
-  
+
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-</style> 
+</style>

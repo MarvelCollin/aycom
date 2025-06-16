@@ -2,26 +2,22 @@
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  
+
   const logger = createLoggerWithPrefix('ExploreFilters');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
-  
-  // Props
+
   export let searchFilter: 'all' | 'following' | 'verified' = 'all';
   export let selectedCategory: string = 'all';
   export let threadCategories: Array<{ id: string; name: string }> = [];
-  
-  // Handle filter change
+
   function handleFilterChange(filter: 'all' | 'following' | 'verified') {
     logger.debug('Search filter changed', { from: searchFilter, to: filter });
     dispatch('filterChange', filter);
   }
-  
-  // Handle category change
+
   function handleCategoryChange(event) {
     logger.debug('Category filter changed', { from: selectedCategory, to: event.target.value });
     dispatch('categoryChange', event.target.value);
@@ -56,7 +52,7 @@
       </button>
     </div>
   </div>
-  
+
   <!-- Category dropdown -->
   <div class="filter-section">
     <label class="filter-label">Category:</label>
@@ -89,19 +85,19 @@
     margin-bottom: var(--space-3);
     border-bottom: 1px solid var(--border-color);
   }
-  
+
   .filter-section {
     display: flex;
     align-items: center;
     gap: var(--space-2);
   }
-  
+
   .filter-label {
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     font-weight: var(--font-weight-medium);
   }
-  
+
   .filter-button-group {
     display: flex;
     background-color: var(--bg-tertiary);
@@ -109,11 +105,11 @@
     padding: var(--space-1);
     box-shadow: var(--shadow-sm);
   }
-  
+
   .filter-button-group-dark {
     background-color: var(--bg-tertiary-dark);
   }
-  
+
   .filter-button {
     padding: var(--space-1) var(--space-3);
     font-size: var(--font-size-sm);
@@ -127,45 +123,45 @@
     align-items: center;
     gap: var(--space-1);
   }
-  
+
   .filter-icon {
     font-size: var(--font-size-sm);
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
-  
+
   .filter-button-dark {
     color: var(--text-secondary-dark);
   }
-  
+
   .filter-button:hover {
     color: var(--text-primary);
     transform: translateY(-1px);
   }
-  
+
   .filter-button-dark:hover {
     color: var(--text-primary-dark);
   }
-  
+
   .filter-button.active {
     background-color: var(--bg-primary);
     color: var(--color-primary);
     box-shadow: var(--shadow-sm);
     font-weight: var(--font-weight-medium);
   }
-  
+
   .filter-button-dark.active {
     background-color: var(--bg-primary-dark);
     color: var(--color-primary);
     box-shadow: var(--shadow-sm-dark);
   }
-  
+
   .category-container {
     position: relative;
     flex: 1;
   }
-  
+
   .dropdown-icon {
     position: absolute;
     right: var(--space-3);
@@ -174,7 +170,7 @@
     pointer-events: none;
     color: var(--text-secondary);
   }
-  
+
   .category-select {
     width: 100%;
     background-color: var(--bg-tertiary);
@@ -189,77 +185,72 @@
     transition: all var(--transition-fast);
     box-shadow: var(--shadow-sm);
   }
-  
+
   .category-select-dark {
     background-color: var(--bg-tertiary-dark);
     color: var(--text-primary-dark);
   }
-  
-  /* Dropdown styling for light and dark mode */
+
   .category-select option {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     padding: var(--space-2);
   }
-  
+
   .category-select-dark option {
     background-color: var(--bg-primary-dark, #1a1a1a);
     color: var(--text-primary-dark, #ffffff);
   }
-  
-  /* Override browser defaults */
+
   select::-ms-expand {
     display: none;
   }
-  
-  /* For Firefox */
+
   select {
     -moz-appearance: none;
   }
-  
-  /* For Chrome and Safari */
+
   select::-webkit-dropdown-button {
     display: none;
   }
-  
-  /* For a consistent dropdown appearance */
+
   @supports (-moz-appearance:none) {
     .category-select option {
       padding: var(--space-3);
     }
   }
-  
+
   .category-select:focus {
     outline: none;
     border-color: var(--color-primary);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
   }
-  
+
   .category-select:hover {
     border-color: var(--color-primary);
     transform: translateY(-1px);
   }
-  
+
   @media (max-width: 600px) {
     .filter-container {
       flex-direction: column;
       align-items: flex-start;
       gap: var(--space-3);
     }
-    
+
     .filter-section {
       width: 100%;
     }
-    
+
     .category-select {
       width: 100%;
     }
   }
-  
+
   @media (min-width: 768px) {
     .category-select {
       min-width: 150px;
     }
   }
-</style> 
+</style>

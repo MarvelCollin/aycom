@@ -34,7 +34,6 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
-	// Parse the request body as a raw map to handle case-insensitive fields
 	var rawData map[string]interface{}
 	if err := c.ShouldBindJSON(&rawData); err != nil {
 		log.Printf("BanUser Handler: Failed to parse request body: %v", err)
@@ -42,11 +41,9 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
-	// Look for 'ban' or 'Ban' field in the raw data
 	var ban bool
 	var banFound bool
 
-	// Try lowercase first
 	if banValue, exists := rawData["ban"]; exists {
 		if boolValue, ok := banValue.(bool); ok {
 			ban = boolValue
@@ -54,7 +51,6 @@ func BanUser(c *gin.Context) {
 		}
 	}
 
-	// If not found, try uppercase
 	if !banFound {
 		if banValue, exists := rawData["Ban"]; exists {
 			if boolValue, ok := banValue.(bool); ok {
@@ -76,7 +72,6 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
-	// Extract reason if present
 	var reason string
 	if reasonValue, exists := rawData["reason"]; exists {
 		if strValue, ok := reasonValue.(string); ok {
@@ -228,7 +223,6 @@ func GetCommunityRequests(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get unapproved communities directly from the community service
 	isApproved := false
 	communitiesResponse, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 		Query:      "",
@@ -243,10 +237,9 @@ func GetCommunityRequests(c *gin.Context) {
 		return
 	}
 
-	// Convert communities to community requests format
 	communityRequests := make([]*userProto.CommunityRequest, 0, len(communitiesResponse.Communities))
 	for _, community := range communitiesResponse.Communities {
-		// Get creator info if available
+
 		var requester *userProto.User
 		if UserClient != nil && community.CreatorId != "" {
 			userResp, userErr := UserClient.GetUser(ctx, &userProto.GetUserRequest{
@@ -312,7 +305,6 @@ func ProcessCommunityRequest(c *gin.Context) {
 		return
 	}
 
-	// The community ID is the same as the request ID
 	communityID := requestID
 
 	if CommunityClient == nil {
@@ -323,7 +315,6 @@ func ProcessCommunityRequest(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Directly update the community approval status in the community service
 	if req.Approve {
 		_, approveErr := CommunityClient.ApproveCommunity(ctx, &communityProto.ApproveCommunityRequest{
 			CommunityId: communityID,
@@ -337,12 +328,10 @@ func ProcessCommunityRequest(c *gin.Context) {
 
 		log.Printf("Successfully approved community %s", communityID)
 	} else {
-		// For rejection, we could implement a delete or mark as rejected in the future
+
 		log.Printf("Community %s was rejected", communityID)
 	}
 
-	// Also update the community request status in the user service if it exists
-	// This is for backward compatibility
 	if UserClient != nil {
 		_, err := UserClient.ProcessCommunityRequest(ctx, &userProto.ProcessCommunityRequestRequest{
 			RequestId: requestID,
@@ -351,7 +340,7 @@ func ProcessCommunityRequest(c *gin.Context) {
 
 		if err != nil {
 			log.Printf("Warning: Failed to update community request in user service: %v", err)
-			// Continue even if this fails, as we've already updated the main community record
+
 		} else {
 			log.Printf("Successfully updated community request in user service")
 		}
@@ -1187,23 +1176,19 @@ func AdminGetAllUsers(c *gin.Context) {
 	})
 }
 
-// SyncPendingCommunities fetches communities from the community service that are not approved
-// and returns statistics about them
 func SyncPendingCommunities(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get all pending communities from community service
 	if CommunityClient == nil {
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
-	// Set false to filter by not approved communities
 	isApproved := false
 	searchResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 		IsApproved: isApproved,
-		Limit:      100, // Using a reasonable limit
+		Limit:      100,
 		Offset:     0,
 	})
 
@@ -1215,7 +1200,6 @@ func SyncPendingCommunities(c *gin.Context) {
 
 	pendingCommunities := searchResp.Communities
 
-	// Track results
 	var syncResults struct {
 		TotalPendingCommunities int      `json:"total_pending_communities"`
 		PendingCommunityIds     []string `json:"pending_community_ids,omitempty"`
@@ -1224,7 +1208,6 @@ func SyncPendingCommunities(c *gin.Context) {
 
 	syncResults.TotalPendingCommunities = len(pendingCommunities)
 
-	// Collect IDs for debugging
 	for _, community := range pendingCommunities {
 		syncResults.PendingCommunityIds = append(syncResults.PendingCommunityIds, community.Id)
 		if community.CreatorId != "" {

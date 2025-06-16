@@ -5,15 +5,15 @@ import (
 	"errors"
 	"log"
 	"time"
-
 	"aycom/backend/proto/thread"
-	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/repository"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/repository"
 )
 
 type ReplyService interface {
@@ -27,7 +27,6 @@ type ReplyService interface {
 	GetRepliesByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Reply, error)
 }
 
-// Add UserRelationService interface
 type UserRelationService interface {
 	CheckUserFollows(ctx context.Context, followerID, followedID string) (bool, error)
 	CheckUserVerified(ctx context.Context, userID string) (bool, error)
@@ -37,14 +36,14 @@ type replyService struct {
 	replyRepo       repository.ReplyRepository
 	threadRepo      repository.ThreadRepository
 	mediaRepo       repository.MediaRepository
-	userRelationSvc UserRelationService // Add this field
+	userRelationSvc UserRelationService 
 }
 
 func NewReplyService(
 	replyRepo repository.ReplyRepository,
 	threadRepo repository.ThreadRepository,
 	mediaRepo repository.MediaRepository,
-	userRelationSvc UserRelationService, // Add this parameter
+	userRelationSvc UserRelationService, 
 ) ReplyService {
 	return &replyService{
 		replyRepo:       replyRepo,
@@ -59,7 +58,6 @@ func (s *replyService) CreateReply(ctx context.Context, req *thread.CreateReplyR
 		return nil, status.Error(codes.InvalidArgument, "Thread ID, User ID, and content are required")
 	}
 
-	// Get the thread to check reply permissions
 	targetThread, err := s.threadRepo.FindThreadByID(req.ThreadId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -68,17 +66,15 @@ func (s *replyService) CreateReply(ctx context.Context, req *thread.CreateReplyR
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)
 	}
 
-	// Check who can reply restriction
 	if targetThread.WhoCanReply != "Everyone" {
 		threadOwnerID := targetThread.UserID.String()
 
-		// If the user is the thread owner, they can always reply
 		if req.UserId != threadOwnerID {
-			// Only check restrictions if userRelationSvc is available
+
 			if s.userRelationSvc != nil {
 				switch targetThread.WhoCanReply {
 				case "Accounts You Follow":
-					// Check if the thread owner follows the user trying to reply
+
 					follows, err := s.userRelationSvc.CheckUserFollows(ctx, threadOwnerID, req.UserId)
 					if err != nil {
 						return nil, status.Errorf(codes.Internal, "Failed to check follow relationship: %v", err)
@@ -87,7 +83,7 @@ func (s *replyService) CreateReply(ctx context.Context, req *thread.CreateReplyR
 						return nil, status.Errorf(codes.PermissionDenied, "Only accounts that the thread owner follows can reply to this thread")
 					}
 				case "Verified Accounts":
-					// Check if user is verified
+
 					verified, err := s.userRelationSvc.CheckUserVerified(ctx, req.UserId)
 					if err != nil {
 						return nil, status.Errorf(codes.Internal, "Failed to check verification status: %v", err)
@@ -96,10 +92,10 @@ func (s *replyService) CreateReply(ctx context.Context, req *thread.CreateReplyR
 						return nil, status.Errorf(codes.PermissionDenied, "Only verified accounts can reply to this thread")
 					}
 				default:
-					// Unknown restriction, default to allowing the reply
+
 				}
 			} else {
-				// Log warning but allow the reply if userRelationSvc is not available
+
 				log.Printf("WARNING: Cannot check reply permissions for thread %s - userRelationSvc is nil", req.ThreadId)
 			}
 		}

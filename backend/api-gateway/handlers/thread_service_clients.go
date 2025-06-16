@@ -1651,9 +1651,6 @@ func (c *GRPCThreadServiceClient) GetUserMediaThreads(userID string, page, limit
 		return nil, fmt.Errorf("thread service client not initialized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// This is a simplified implementation - in a real service you would have a specific method for media posts
 	// For now, we'll get all threads by the user and filter for ones with media
 	threads, err := c.GetThreadsByUserID(userID, "", page, limit)

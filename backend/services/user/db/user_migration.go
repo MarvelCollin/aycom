@@ -53,8 +53,6 @@ func Migrate(db *gorm.DB) error {
 		}
 	}
 
-	// Also run the premium requests fix regardless of migration version
-	// to ensure the columns are properly added
 	log.Printf("Running premium requests fix...")
 	if err := UpdatePremiumRequestsTable(db); err != nil {
 		log.Printf("Error fixing premium requests: %v", err)

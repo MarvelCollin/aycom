@@ -1,10 +1,9 @@
 <script lang="ts">
   import ThreadCard from './ThreadCard.svelte';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  
+
   const logger = createLoggerWithPrefix('ExploreLatestResults');
-  
-  // Props
+
   export let latestThreads: Array<{
     id: string;
     content: string;
@@ -21,8 +20,7 @@
     avatar?: string;
   }> = [];
   export let isLoading = false;
-  
-  // Log when threads are received or empty
+
   $: {
     if (!isLoading) {
       if (latestThreads.length > 0) {
@@ -64,7 +62,7 @@
 </div>
 
 <style>
-  /* Skeleton loading animation */
+
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
@@ -72,4 +70,4 @@
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-</style> 
+</style>

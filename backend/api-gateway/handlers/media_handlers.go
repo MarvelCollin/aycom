@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"aycom/backend/api-gateway/utils"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func UploadMedia(c *gin.Context) {
@@ -76,7 +76,7 @@ func UploadMedia(c *gin.Context) {
 
 	thumbnailUrl := ""
 	if mediaType == "video" {
-		// Thumbnail handling would go here
+
 	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{

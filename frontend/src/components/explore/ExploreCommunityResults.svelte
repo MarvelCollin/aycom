@@ -3,15 +3,13 @@
   import { useTheme } from '../../hooks/useTheme';
   import CommunityCard from './CommunityCard.svelte';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  
+
   const logger = createLoggerWithPrefix('ExploreCommunityResults');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
-  
-  // Define a more flexible community type to handle different API response formats
+
   type RawCommunity = {
     id: string;
     name: string;
@@ -26,19 +24,17 @@
     isPending?: boolean;
     is_pending?: boolean;
   };
-  
-  // Props
+
   export let communityResults: RawCommunity[] = [];
   export let isLoading = false;
   export let communitiesPerPage = 25;
   export let currentPage = 1;
   export let totalCount = 0;
-  
-  // Process community results to ensure consistent data format
+
   $: processedCommunities = communityResults
     .filter(community => community && typeof community === 'object')
     .map(community => {
-      // Map keys to the expected format that CommunityCard requires
+
       return {
         id: community.id || '',
         name: community.name || '',
@@ -49,46 +45,38 @@
         isPending: community.isPending || community.is_pending || false
       };
     });
-  
-  // Calculate total pages
+
   $: totalPages = Math.ceil(totalCount / communitiesPerPage);
-  
-  // Handle page change
+
   function changePage(page: number) {
     logger.debug('Changing page', { page });
     dispatch('pageChange', page);
   }
-  
-  // Page size options
+
   const perPageOptions = [25, 30, 35];
-  
-  // Handle per page change
+
   function handlePerPageChange(e) {
     const newValue = parseInt(e.target.value);
     logger.debug('Changing results per page', { value: newValue });
     dispatch('communitiesPerPageChange', newValue);
   }
-  
-  // Handle join request
+
   function handleJoinRequest(event) {
     const { communityId } = event.detail;
     logger.debug('Join request for community', { communityId });
     dispatch('joinRequest', communityId);
   }
-  
-  // Handle communities per page change
+
   function handleCommunitiesPerPageChange(perPage) {
     logger.debug('Changing communities per page', { from: communitiesPerPage, to: perPage });
     dispatch('communitiesPerPageChange', perPage);
   }
-  
-  // Handle load more
+
   function handleLoadMore() {
     logger.debug('Loading more community results');
     dispatch('loadMore');
   }
-  
-  // Log when community results change
+
   $: {
     if (!isLoading) {
       if (processedCommunities.length > 0) {
@@ -134,7 +122,7 @@
       </div>
     </div>
   </div>
-  
+
   {#if isLoading}
     <div class="animate-pulse space-y-4">
       {#each Array(3) as _}
@@ -150,7 +138,7 @@
       {#each processedCommunities as community}
           <CommunityCard {community} on:joinRequest={handleJoinRequest} />
       {/each}
-      
+
       <!-- Pagination controls -->
       {#if totalCount > communitiesPerPage}
         <div class="mt-6 flex flex-wrap justify-between items-center gap-4 border-t border-gray-200 dark:border-gray-800 pt-4">
@@ -166,7 +154,7 @@
               {/each}
             </select>
           </div>
-          
+
           <div class="flex items-center space-x-1">
             <button 
               class="px-3 py-1 rounded {currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800'}"
@@ -175,7 +163,7 @@
             >
               Previous
             </button>
-            
+
             {#each Array(Math.min(5, totalPages)) as _, i}
               {#if totalPages <= 5 || (i < 3 && currentPage <= 3) || (i >= totalPages - 3 && currentPage >= totalPages - 2) || (i >= currentPage - 2 && i <= currentPage)}
                 <button 
@@ -188,7 +176,7 @@
                 <span class="px-1">...</span>
               {/if}
             {/each}
-            
+
         <button 
               class="px-3 py-1 rounded {currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800'}"
               disabled={currentPage === totalPages}
@@ -204,7 +192,7 @@
 </div>
 
 <style>
-  /* Skeleton loading animation */
+
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
@@ -212,9 +200,8 @@
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-  
-  /* Fix for dropdown display */
+
   .group:hover .hidden.group-hover\:block {
     display: block;
   }
-</style> 
+</style>

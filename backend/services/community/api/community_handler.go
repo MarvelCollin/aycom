@@ -2,8 +2,6 @@ package api
 
 import (
 	communityProto "aycom/backend/proto/community"
-	"aycom/backend/services/community/model"
-	"aycom/backend/services/community/repository"
 	"context"
 	"fmt"
 	"log"
@@ -15,6 +13,9 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
+	"aycom/backend/services/community/repository"
 )
 
 type CommunityService interface {
@@ -224,12 +225,12 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityPr
 
 	var communities []*model.Community
 	var totalCount int64
-	var err error // Check if IsApproved filtering is requested
+	var err error
 	var isApproved *bool
-	// Always apply the filter since the field is always explicitly set in our API calls
+
 	approved := req.IsApproved
 	isApproved = &approved
-	// Use SearchCommunities for filtered results
+
 	communities, totalCount, err = h.communityService.SearchCommunities(ctx, "", []string{}, isApproved, offset, limit)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities with approval filter: %v", err))
@@ -527,7 +528,6 @@ func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communit
 		return nil, status.Error(codes.InvalidArgument, "invalid request ID")
 	}
 
-	// Get the join request by ID - we need to find it first
 	joinRequest, err := h.communityJoinRequestRepo.FindByID(requestID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to find join request: %v", err))
@@ -537,22 +537,19 @@ func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communit
 		return nil, status.Error(codes.NotFound, "join request not found")
 	}
 
-	// Check if the request is still pending
 	if joinRequest.Status != "pending" {
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("join request is not pending, current status: %s", joinRequest.Status))
 	}
 
-	// Start a database transaction for all operations
 	tx, err := h.communityJoinRequestRepo.BeginTx(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to start transaction: %v", err))
 	}
 
-	// Use defer with a named return value to handle transaction rollback/commit
 	var txErr error
 	defer func() {
 		if txErr != nil {
-			// If there's an error, rollback the transaction
+
 			if rbErr := tx.Rollback(); rbErr != nil {
 				log.Printf("Error rolling back transaction: %v", rbErr)
 			}
@@ -560,7 +557,6 @@ func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communit
 		}
 	}()
 
-	// Update the join request status to approved within the transaction
 	joinRequest.Status = "approved"
 	joinRequest.UpdatedAt = time.Now()
 	txErr = h.communityJoinRequestRepo.UpdateTx(tx, joinRequest)
@@ -568,7 +564,6 @@ func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communit
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to update join request: %v", txErr))
 	}
 
-	// Add the user as a member to the community within the transaction
 	member := &model.CommunityMember{
 		CommunityID: joinRequest.CommunityID,
 		UserID:      joinRequest.UserID,
@@ -580,13 +575,11 @@ func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communit
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to add community member: %v", txErr))
 	}
 
-	// Commit the transaction
 	txErr = tx.Commit().Error
 	if txErr != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to commit transaction: %v", txErr))
 	}
 
-	// Log successful approval
 	log.Printf("Successfully approved join request ID %s for user %s in community %s",
 		joinRequest.RequestID, joinRequest.UserID, joinRequest.CommunityID)
 
@@ -610,7 +603,6 @@ func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *community
 		return nil, status.Error(codes.InvalidArgument, "invalid request ID")
 	}
 
-	// Get the join request by ID
 	joinRequest, err := h.communityJoinRequestRepo.FindByID(requestID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to find join request: %v", err))
@@ -620,18 +612,15 @@ func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *community
 		return nil, status.Error(codes.NotFound, "join request not found")
 	}
 
-	// Check if the request is still pending
 	if joinRequest.Status != "pending" {
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("join request is not pending, current status: %s", joinRequest.Status))
 	}
 
-	// Start a database transaction
 	tx, err := h.communityJoinRequestRepo.BeginTx(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to start transaction: %v", err))
 	}
 
-	// Use defer with a named return value to handle transaction rollback/commit
 	var txErr error
 	defer func() {
 		if txErr != nil {
@@ -642,7 +631,6 @@ func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *community
 		}
 	}()
 
-	// Update the join request status to rejected
 	joinRequest.Status = "rejected"
 	joinRequest.UpdatedAt = time.Now()
 	txErr = h.communityJoinRequestRepo.UpdateTx(tx, joinRequest)
@@ -650,13 +638,11 @@ func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *community
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to update join request: %v", txErr))
 	}
 
-	// Commit the transaction
 	txErr = tx.Commit().Error
 	if txErr != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to commit transaction: %v", txErr))
 	}
 
-	// Log successful rejection
 	log.Printf("Successfully rejected join request ID %s for user %s in community %s",
 		joinRequest.RequestID, joinRequest.UserID, joinRequest.CommunityID)
 
@@ -680,13 +666,11 @@ func (h *CommunityHandler) ListJoinRequests(ctx context.Context, req *communityP
 		return nil, status.Error(codes.InvalidArgument, "invalid community ID")
 	}
 
-	// Get join requests from the repository
 	joinRequests, err := h.communityJoinRequestRepo.FindByCommunity(communityID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list join requests: %v", err))
 	}
 
-	// Convert to proto format
 	protoRequests := make([]*communityProto.JoinRequest, len(joinRequests))
 	for i, request := range joinRequests {
 		protoRequests[i] = &communityProto.JoinRequest{
@@ -702,20 +686,17 @@ func (h *CommunityHandler) ListJoinRequests(ctx context.Context, req *communityP
 	}, nil
 }
 
-// Helper method to map a model.Community to a protobuf response
 func (h *CommunityHandler) mapCommunityToResponse(community *model.Community) *communityProto.CommunityResponse {
 	return &communityProto.CommunityResponse{
 		Community: h.mapCommunityToProto(community),
 	}
 }
 
-// Helper method to map a model.Community to a protobuf Community
 func (h *CommunityHandler) mapCommunityToProto(community *model.Community) *communityProto.Community {
 	if community == nil {
 		return &communityProto.Community{}
 	}
 
-	// Handle nil Categories array
 	categories := make([]*communityProto.Category, 0)
 	if community.Categories != nil {
 		for _, category := range community.Categories {
@@ -728,7 +709,6 @@ func (h *CommunityHandler) mapCommunityToProto(community *model.Community) *comm
 		}
 	}
 
-	// Create timestamps safely
 	var createdAt *timestamppb.Timestamp
 	var updatedAt *timestamppb.Timestamp
 
@@ -1015,7 +995,7 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 	}
 
 	var isApproved *bool
-	// Always apply the filter since the field is always explicitly set in our API calls
+
 	approved := req.IsApproved
 	isApproved = &approved
 
@@ -1035,7 +1015,6 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 	}, nil
 }
 
-// ListUserCommunities gets communities based on user's membership status
 func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communityProto.ListUserCommunitiesRequest) (*communityProto.ListCommunitiesResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -1052,42 +1031,35 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 		limit = 10
 	}
 
-	// Normalize status values
 	memberStatus := req.Status
 	if memberStatus != "member" && memberStatus != "pending" {
-		memberStatus = "member" // Default to member if not specified
+		memberStatus = "member"
 	}
 
-	// We're keeping these variables for future implementation
-	// Currently, the service doesn't support filtering by query or categories
-	_ = req.Query      // Search query - will be implemented later
-	_ = req.Categories // Categories - will be implemented later
+	_ = req.Query
+	_ = req.Categories
 
 	var communities []*model.Community
 	var totalCount int64
 	var repoErr error
 
-	// Wrap the repository call in a recovery block to handle panics
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				repoErr = fmt.Errorf("recovered from panic in ListUserCommunities: %v", r)
 				log.Printf("PANIC in ListUserCommunities: %v", r)
-				debug.PrintStack() // Print the stack trace for debugging
+				debug.PrintStack()
 			}
 		}()
 
-		// Get communities based on user membership
 		communities, totalCount, repoErr = h.communityService.ListUserCommunities(ctx, userID, memberStatus, offset, limit)
 	}()
 
-	// Handle repository error
 	if repoErr != nil {
 		log.Printf("Error in repository.ListByUserMembership: %v", repoErr)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities: %v", repoErr))
 	}
 
-	// Handle empty results - return empty response instead of error
 	if communities == nil {
 		return &communityProto.ListCommunitiesResponse{
 			Communities: []*communityProto.Community{},
@@ -1095,7 +1067,6 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 		}, nil
 	}
 
-	// Map model communities to protobuf communities
 	protoCommunities := make([]*communityProto.Community, 0, len(communities))
 	for _, community := range communities {
 		if community != nil {
@@ -1110,7 +1081,6 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 	}, nil
 }
 
-// IsMember checks if a user is a member of a community
 func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsMemberRequest) (*communityProto.IsMemberResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -1136,7 +1106,6 @@ func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsM
 	}, nil
 }
 
-// HasPendingJoinRequest checks if a user has a pending join request for a community
 func (h *CommunityHandler) HasPendingJoinRequest(ctx context.Context, req *communityProto.HasPendingJoinRequestRequest) (*communityProto.HasPendingJoinRequestResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")

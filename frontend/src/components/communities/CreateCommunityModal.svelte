@@ -4,26 +4,26 @@
   import { toastStore } from '../../stores/toastStore';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { createCommunity, getCategories } from '../../api/community';
-  
+
   import Spinner from '../common/Spinner.svelte';
-  
+
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
   import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
   import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
-  
+
   const logger = createLoggerWithPrefix('CreateCommunityModal');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
+
   export let isOpen = false;
-  
+
   $: isDarkMode = $theme === 'dark';
-  
+
   let isLoading = false;
   let isSubmitting = false;
   let isSuccess = false;
-  
+
   let communityName = '';
   let description = '';
   let icon: File | null = null;
@@ -34,15 +34,13 @@
   let availableCategories: string[] = [];
   let selectedCategories: string[] = [];
   let errors: Record<string, string> = {};
-  
-  // Predefined categories to use if API doesn't return any
+
   const defaultCategories = [
     "Art", "Business", "Education", "Entertainment", "Gaming", 
     "Health", "Lifestyle", "Music", "News", "Politics", 
     "Science", "Sports", "Technology", "Travel"
   ];
-  
-  // Category templates for quick selection
+
   const categoryTemplates = [
     {
       name: "Technology Community",
@@ -65,16 +63,16 @@
       categories: ["Lifestyle", "Health", "Travel"]
     }
   ];
-  
+
   onMount(async () => {
     await fetchCategories();
   });
-  
+
   async function fetchCategories() {
     try {
       isLoading = true;
       const response = await getCategories();
-      
+
       if (Array.isArray(response) && response.length > 0) {
         availableCategories = response.map(cat => cat.name);
       } else if (response && typeof response === 'object' && 'categories' in response) {
@@ -94,43 +92,43 @@
       isLoading = false;
     }
   }
-  
+
   function validateForm(): boolean {
     errors = {};
-    
+
     if (!communityName.trim()) {
       errors.communityName = 'Community name is required';
     }
-    
+
     if (!description.trim()) {
       errors.description = 'Description is required';
     }
-    
+
     if (!icon) {
       errors.icon = 'Community icon is required';
     }
-    
+
     if (selectedCategories.length === 0) {
       errors.categories = 'At least one category is required';
     }
-    
+
     if (!banner) {
       errors.banner = 'Community banner is required';
     }
-    
+
     if (!rules.trim()) {
       errors.rules = 'Community rules are required';
     }
-    
+
     return Object.keys(errors).length === 0;
   }
-  
+
   function handleIconChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) {
       return;
     }
-    
+
     icon = input.files[0];
     const reader = new FileReader();
     reader.onload = e => {
@@ -138,13 +136,13 @@
     };
     reader.readAsDataURL(icon);
   }
-  
+
   function handleBannerChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) {
       return;
     }
-    
+
     banner = input.files[0];
     const reader = new FileReader();
     reader.onload = e => {
@@ -152,7 +150,7 @@
     };
     reader.readAsDataURL(banner);
   }
-  
+
   function toggleCategory(category: string) {
     if (selectedCategories.includes(category)) {
       selectedCategories = selectedCategories.filter(c => c !== category);
@@ -164,28 +162,27 @@
       selectedCategories = [...selectedCategories, category];
     }
   }
-  
+
   function applyTemplate(template: { name: string, categories: string[] }) {
-    // Only include categories that are available
+
     const validCategories = template.categories.filter(cat => 
       availableCategories.includes(cat)
     );
-    
-    // Limit to 5 categories
+
     const limitedCategories = validCategories.slice(0, 5);
-    
+
     if (limitedCategories.length === 0) {
       toastStore.showToast('No valid categories in this template', 'warning');
       return;
     }
-    
+
     selectedCategories = [...limitedCategories];
     toastStore.showToast(`Applied "${template.name}" template`, 'success');
   }
-  
+
   async function handleSubmit() {
     if (!validateForm()) {
-      // Scroll to the first error
+
       const firstErrorKey = Object.keys(errors)[0];
       const errorElement = document.querySelector(`[data-error="${firstErrorKey}"]`);
       if (errorElement) {
@@ -193,11 +190,11 @@
       }
       return;
     }
-    
+
     isSubmitting = true;
-    
+
     try {
-      // Create an object with all the form data
+
       const communityData = {
         name: communityName,
         description: description,
@@ -206,18 +203,17 @@
         categories: selectedCategories,
         rules: rules
       };
-      
-      // Pass the data to the API function which will handle the FormData creation
+
       const result = await createCommunity(communityData);
-      
+
       isSuccess = true;
       toastStore.showToast('Community creation request submitted for approval', 'success');
-      
+
       setTimeout(() => {
         handleClose();
         dispatch('success');
       }, 2000);
-      
+
     } catch (error) {
       logger.error('Error creating community:', error);
       toastStore.showToast('Failed to create community. Please try again.', 'error');
@@ -225,11 +221,11 @@
       isSubmitting = false;
     }
   }
-  
+
   function handleClose() {
     isOpen = false;
     dispatch('close');
-    
+
     setTimeout(() => {
       communityName = '';
       description = '';
@@ -243,7 +239,7 @@
       isSuccess = false;
     }, 300);
   }
-  
+
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       handleClose();
@@ -258,7 +254,7 @@
     role="dialog"
     aria-modal="true"
     tabindex="-1">
-    
+
     <div class="modal-container" on:click|stopPropagation>
       <div class="modal-header">
         <h2>Create Community</h2>
@@ -266,7 +262,7 @@
           <XIcon size="20" />
         </button>
       </div>
-      
+
       <div class="modal-body">
         {#if isLoading}
           <div class="loading-container">
@@ -283,7 +279,7 @@
             Create your own community to connect with people who share your interests.
             All communities are subject to admin approval before they are created.
           </p>
-          
+
           <form class="community-form" on:submit|preventDefault={handleSubmit}>
             <div class="form-group" data-error="communityName">
               <label for="communityName">
@@ -307,7 +303,7 @@
                 </div>
               {/if}
             </div>
-            
+
             <div class="form-group" data-error="description">
               <label for="description">
                 Description <span class="required">*</span>
@@ -330,7 +326,7 @@
                 </div>
               {/if}
             </div>
-            
+
             <div class="form-row">
               <div class="form-group media-upload" data-error="icon">
                 <label>
@@ -358,7 +354,7 @@
                   </div>
                 {/if}
               </div>
-              
+
               <div class="form-group media-upload" data-error="banner">
                 <label>
                   Community Banner <span class="required">*</span>
@@ -386,13 +382,13 @@
                 {/if}
               </div>
             </div>
-            
+
             <div class="form-group" data-error="categories">
               <label>
                 Categories <span class="required">*</span>
                 <span class="label-hint">(Select up to 5)</span>
               </label>
-              
+
               <div class="templates-section">
                 <h4>Quick Templates</h4>
                 <div class="templates-grid">
@@ -407,10 +403,10 @@
                   {/each}
                 </div>
               </div>
-              
+
               <div class="categories-container {errors.categories ? 'error' : ''}">
                 <h4>Selected Categories: {selectedCategories.length}/5</h4>
-                
+
                 <div class="selected-categories">
                   {#if selectedCategories.length === 0}
                     <p class="no-selection">No categories selected</p>
@@ -430,7 +426,7 @@
                     {/each}
                   {/if}
                 </div>
-                
+
                 <h4>Available Categories</h4>
                 <div class="categories-grid">
                   {#if availableCategories.length === 0}
@@ -451,7 +447,7 @@
                     {/each}
                   {/if}
                 </div>
-                
+
                 {#if errors.categories}
                   <div class="error-message">
                     <AlertCircleIcon size="14" />
@@ -460,7 +456,7 @@
                 {/if}
               </div>
             </div>
-            
+
             <div class="form-group" data-error="rules">
               <label for="rules">
                 Community Rules <span class="required">*</span>
@@ -482,7 +478,7 @@
                 </div>
               {/if}
             </div>
-            
+
             <div class="form-actions">
               <button 
                 type="button" 
@@ -527,7 +523,7 @@
     padding: 20px;
     overflow-y: auto;
   }
-  
+
   .modal-container {
     background-color: white;
     border-radius: 8px;
@@ -538,12 +534,12 @@
     overflow-y: auto;
     animation: modalFadeIn 0.3s ease-out;
   }
-  
+
   .dark .modal-container {
     background-color: #1a1a1a;
     color: #f0f0f0;
   }
-  
+
   @keyframes modalFadeIn {
     from {
       opacity: 0;
@@ -554,7 +550,7 @@
       transform: translateY(0);
     }
   }
-  
+
   .modal-header {
     display: flex;
     justify-content: space-between;
@@ -562,17 +558,17 @@
     padding: 16px 24px;
     border-bottom: 1px solid #eaeaea;
   }
-  
+
   .dark .modal-header {
     border-bottom-color: #333;
   }
-  
+
   .modal-header h2 {
     font-size: 1.5rem;
     font-weight: 600;
     margin: 0;
   }
-  
+
   .close-button {
     background: none;
     border: none;
@@ -585,33 +581,33 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .close-button:hover {
     background-color: #f0f0f0;
   }
-  
+
   .dark .close-button {
     color: #aaa;
   }
-  
+
   .dark .close-button:hover {
     background-color: #333;
   }
-  
+
   .modal-body {
     padding: 24px;
   }
-  
+
   .modal-description {
     margin-bottom: 24px;
     color: #666;
     font-size: 0.95rem;
   }
-  
+
   .dark .modal-description {
     color: #aaa;
   }
-  
+
   .loading-container, .success-container {
     display: flex;
     flex-direction: column;
@@ -620,7 +616,7 @@
     padding: 40px 0;
     text-align: center;
   }
-  
+
   .success-icon {
     width: 64px;
     height: 64px;
@@ -633,57 +629,57 @@
     font-size: 32px;
     margin-bottom: 16px;
   }
-  
+
   .success-container h3 {
     font-size: 1.5rem;
     margin-bottom: 8px;
   }
-  
+
   .community-form {
     display: flex;
     flex-direction: column;
     gap: 24px;
   }
-  
+
   .form-group {
     display: flex;
     flex-direction: column;
   }
-  
+
   .form-row {
     display: flex;
     gap: 20px;
   }
-  
+
   @media (max-width: 768px) {
     .form-row {
       flex-direction: column;
     }
   }
-  
+
   label {
     font-weight: 500;
     margin-bottom: 8px;
     display: flex;
     align-items: center;
   }
-  
+
   .label-hint {
     font-weight: normal;
     font-size: 0.85rem;
     color: #666;
     margin-left: 8px;
   }
-  
+
   .dark .label-hint {
     color: #aaa;
   }
-  
+
   .required {
     color: #f44336;
     margin-left: 4px;
   }
-  
+
   input, textarea {
     padding: 10px 12px;
     border: 1px solid #ddd;
@@ -691,18 +687,18 @@
     font-size: 0.95rem;
     transition: border-color 0.2s;
   }
-  
+
   .dark input, .dark textarea {
     background-color: #2a2a2a;
     border-color: #444;
     color: #f0f0f0;
   }
-  
+
   input:focus, textarea:focus {
     outline: none;
     border-color: #3498db;
   }
-  
+
   .input-hint {
     font-size: 0.8rem;
     color: #666;
@@ -710,15 +706,15 @@
     display: flex;
     justify-content: flex-end;
   }
-  
+
   .dark .input-hint {
     color: #aaa;
   }
-  
+
   input.error, textarea.error, select.error, .media-preview.error, .categories-container.error {
     border-color: #f44336;
   }
-  
+
   .error-message {
     display: flex;
     align-items: center;
@@ -727,11 +723,11 @@
     font-size: 0.8rem;
     margin-top: 6px;
   }
-  
+
   .media-upload {
     flex: 1;
   }
-  
+
   .media-preview {
     height: 150px;
     border: 2px dashed #ddd;
@@ -741,25 +737,25 @@
     cursor: pointer;
     transition: all 0.2s;
   }
-  
+
   .dark .media-preview {
     border-color: #444;
   }
-  
+
   .media-preview:hover {
     border-color: #3498db;
   }
-  
+
   .banner-preview {
     height: 100px;
   }
-  
+
   .media-preview img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   .upload-placeholder {
     display: flex;
     flex-direction: column;
@@ -769,11 +765,11 @@
     color: #666;
     gap: 8px;
   }
-  
+
   .dark .upload-placeholder {
     color: #aaa;
   }
-  
+
   .media-preview input {
     position: absolute;
     width: 100%;
@@ -783,18 +779,18 @@
     opacity: 0;
     cursor: pointer;
   }
-  
+
   .templates-section {
     margin-bottom: 16px;
   }
-  
+
   .templates-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
     margin-top: 8px;
   }
-  
+
   .template-button {
     padding: 8px 12px;
     background-color: #f5f5f5;
@@ -805,40 +801,40 @@
     text-align: left;
     font-size: 0.9rem;
   }
-  
+
   .template-button:hover {
     background-color: #e9e9e9;
     border-color: #ccc;
   }
-  
+
   .dark .template-button {
     background-color: #333;
     border-color: #444;
     color: #f0f0f0;
   }
-  
+
   .dark .template-button:hover {
     background-color: #3a3a3a;
   }
-  
+
   .categories-container {
     border: 1px solid #ddd;
     border-radius: 4px;
     padding: 16px;
     margin-top: 8px;
   }
-  
+
   .dark .categories-container {
     border-color: #444;
     background-color: #2a2a2a;
   }
-  
+
   h4 {
     font-size: 0.95rem;
     font-weight: 500;
     margin: 0 0 10px 0;
   }
-  
+
   .selected-categories {
     display: flex;
     flex-wrap: wrap;
@@ -846,17 +842,17 @@
     margin-bottom: 16px;
     min-height: 32px;
   }
-  
+
   .no-selection {
     color: #888;
     font-style: italic;
     font-size: 0.9rem;
   }
-  
+
   .dark .no-selection {
     color: #777;
   }
-  
+
   .selected-category {
     display: flex;
     align-items: center;
@@ -866,12 +862,12 @@
     font-size: 0.9rem;
     gap: 6px;
   }
-  
+
   .dark .selected-category {
     background-color: #1e3a5f;
     color: #e3f2fd;
   }
-  
+
   .remove-category {
     background: none;
     border: none;
@@ -882,11 +878,11 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .dark .remove-category {
     color: #ccc;
   }
-  
+
   .categories-grid {
     display: flex;
     flex-wrap: wrap;
@@ -896,7 +892,7 @@
     padding: 4px;
     margin-top: 8px;
   }
-  
+
   .category-chip {
     display: flex;
     align-items: center;
@@ -909,55 +905,55 @@
     transition: all 0.2s;
     font-size: 0.9rem;
   }
-  
+
   .category-chip:hover:not(:disabled) {
     background-color: #e0e0e0;
   }
-  
+
   .dark .category-chip {
     background-color: #333;
     border-color: #444;
     color: #f0f0f0;
   }
-  
+
   .dark .category-chip:hover:not(:disabled) {
     background-color: #3a3a3a;
   }
-  
+
   .category-chip.selected {
     background-color: #2196f3;
     color: white;
     border-color: #2196f3;
   }
-  
+
   .dark .category-chip.selected {
     background-color: #1976d2;
     border-color: #1976d2;
   }
-  
+
   .category-chip:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  
+
   .no-categories {
     color: #888;
     font-style: italic;
     font-size: 0.9rem;
     margin: 0;
   }
-  
+
   .dark .no-categories {
     color: #777;
   }
-  
+
   .form-actions {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
     margin-top: 16px;
   }
-  
+
   .cancel-button, .submit-button {
     padding: 10px 20px;
     border-radius: 4px;
@@ -965,26 +961,26 @@
     cursor: pointer;
     transition: all 0.2s;
   }
-  
+
   .cancel-button {
     background: none;
     border: 1px solid #ddd;
     color: #666;
   }
-  
+
   .cancel-button:hover:not(:disabled) {
     background-color: #f0f0f0;
   }
-  
+
   .dark .cancel-button {
     border-color: #444;
     color: #ccc;
   }
-  
+
   .dark .cancel-button:hover:not(:disabled) {
     background-color: #333;
   }
-  
+
   .submit-button {
     background-color: #2196f3;
     border: none;
@@ -993,11 +989,11 @@
     align-items: center;
     gap: 8px;
   }
-  
+
   .submit-button:hover:not(:disabled) {
     background-color: #1e88e5;
   }
-  
+
   .submit-button:disabled, .cancel-button:disabled {
     opacity: 0.7;
     cursor: not-allowed;

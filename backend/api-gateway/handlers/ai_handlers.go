@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func PredictCategory(c *gin.Context) {

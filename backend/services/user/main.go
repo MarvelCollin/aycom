@@ -1,6 +1,7 @@
 package main
 
 import (
+	"aycom/backend/proto/user"
 	"context"
 	"fmt"
 	"log"
@@ -18,7 +19,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"aycom/backend/proto/user"
 	handlers "aycom/backend/services/user/api"
 	"aycom/backend/services/user/db"
 	"aycom/backend/services/user/repository"

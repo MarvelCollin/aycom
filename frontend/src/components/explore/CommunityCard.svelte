@@ -1,14 +1,12 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
-  
+
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
-  
-  // Define a more flexible community type to handle different API response formats
+
   type CommunityData = {
     id: string;
     name: string;
@@ -23,17 +21,14 @@
     isPending?: boolean;
     is_pending?: boolean;
   };
-  
-  // Props
+
   export let community: CommunityData;
-  
-  // Computed properties to handle different naming conventions
+
   $: logo = community.logo || community.logo_url || community.avatar || null;
   $: memberCount = community.memberCount || community.member_count || 0;
   $: isJoined = community.isJoined || community.is_joined || false;
   $: isPending = community.isPending || community.is_pending || false;
-  
-  // Handle join request
+
   function handleJoinRequest() {
     dispatch('joinRequest', {communityId: community.id});
   }
@@ -111,29 +106,29 @@
     transition: transform var(--transition-normal), box-shadow var(--transition-normal);
     overflow: hidden;
   }
-  
+
   .community-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
   }
-  
+
   .community-card-dark {
     background-color: var(--dark-bg-secondary);
     border-color: var(--border-color-dark);
   }
-  
+
   .community-card-content {
     padding: var(--space-4);
     display: flex;
     align-items: center;
   }
-  
+
   .community-logo-container {
     flex-shrink: 0;
     margin-right: var(--space-3);
     text-decoration: none;
   }
-  
+
   .community-logo {
     width: 60px;
     height: 60px;
@@ -145,43 +140,43 @@
     overflow: hidden;
     border: 1px solid var(--border-color);
   }
-  
+
   .community-logo-dark {
     background-color: var(--dark-bg-tertiary);
     border-color: var(--border-color-dark);
   }
-  
+
   .community-logo-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   .community-logo-placeholder {
     color: var(--text-tertiary);
   }
-  
+
   .community-info {
     flex: 1;
     min-width: 0;
   }
-  
+
   .community-link {
     text-decoration: none;
     display: block;
   }
-  
+
   .community-name {
     font-weight: var(--font-weight-bold);
     font-size: var(--font-size-lg);
     margin: 0 0 var(--space-1);
     color: var(--text-primary);
   }
-  
+
   .community-name-dark {
     color: var(--dark-text-primary);
   }
-  
+
   .community-description {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
@@ -194,16 +189,16 @@
     line-height: 1.4;
     max-height: calc(1.4em * 2);
   }
-  
+
   .community-description-dark {
     color: var(--dark-text-secondary);
   }
-  
+
   .community-stats {
     display: flex;
     align-items: center;
   }
-  
+
   .community-member-count {
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
@@ -211,12 +206,12 @@
     align-items: center;
     gap: var(--space-1);
   }
-  
+
   .community-action {
     margin-left: var(--space-3);
     flex-shrink: 0;
   }
-  
+
   .join-button {
     padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-full);
@@ -228,16 +223,16 @@
     cursor: pointer;
     transition: background-color var(--transition-fast), transform var(--transition-fast);
   }
-  
+
   .join-button:hover {
     background-color: var(--color-primary-hover);
     transform: translateY(-1px);
   }
-  
+
   .join-button-dark {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   }
-  
+
   .joined-badge, .pending-badge {
     display: flex;
     align-items: center;
@@ -249,32 +244,32 @@
     border: 1px solid var(--border-color);
     background-color: var(--bg-primary);
   }
-  
+
   .joined-badge-dark, .pending-badge-dark {
     border-color: var(--border-color-dark);
     background-color: var(--dark-bg-primary);
   }
-  
+
   .joined-badge {
     color: var(--color-success);
   }
-  
+
   .pending-badge {
     color: var(--color-warning);
   }
-  
+
   @media (max-width: 576px) {
     .community-logo {
       width: 48px;
       height: 48px;
     }
-    
+
     .community-name {
       font-size: var(--font-size-md);
     }
-    
+
     .community-description {
       font-size: var(--font-size-xs);
     }
   }
-</style> 
+</style>

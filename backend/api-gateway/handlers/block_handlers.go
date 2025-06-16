@@ -1,12 +1,13 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func BlockUser(c *gin.Context) {

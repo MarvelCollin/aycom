@@ -3,9 +3,9 @@ package db
 import (
 	"log"
 
-	"aycom/backend/services/user/model"
-
 	"gorm.io/gorm"
+
+	"aycom/backend/services/user/model"
 )
 
 func AddBlockAndReportTables(db *gorm.DB) error {

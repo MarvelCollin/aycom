@@ -4,15 +4,13 @@
   import ThreadCard from './ThreadCard.svelte';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { useTheme } from '../../hooks/useTheme';
-  
+
   const logger = createLoggerWithPrefix('ExploreTopResults');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
-  
-  // Props with more flexible type definitions to handle different naming conventions
+
   export let topProfiles: Array<{
     id: string;
     username: string;
@@ -28,7 +26,7 @@
     is_following?: boolean;
     isFollowing?: boolean;
   }> = [];
-  
+
   export let topThreads: Array<{
     id: string;
     content: string;
@@ -44,17 +42,15 @@
     }>;
     profile_picture_url?: string;
   }> = [];
-  
+
   export let isLoading = false;
-  
-  // Handle profile click
+
   function handleProfileClick(event) {
     const userId = event.detail;
     logger.debug('Profile click', { userId });
     dispatch('profileClick', userId);
   }
-  
-  // Handle view all
+
   function handleViewAll(section: string) {
     logger.debug('View all clicked', { section });
     dispatch('viewAll', section);
@@ -70,7 +66,7 @@
           <div class="h-6 bg-gray-300 dark:bg-gray-700 rounded w-24"></div>
           <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-16"></div>
         </div>
-        
+
         <div class="profiles-grid">
           {#each Array(6) as _}
             <div class="skeleton-card">
@@ -108,7 +104,7 @@
             </svg>
           </button>
         </div>
-        
+
         <div class="profiles-grid">
           {#each topProfiles as profile}
             <div class="profile-card-container {isDarkMode ? 'profile-card-container-dark' : ''}">
@@ -130,7 +126,7 @@
         </div>
       </div>
     {/if}
-    
+
     <!-- Top Threads Section -->
     {#if topThreads.length > 0}
       <div>
@@ -150,7 +146,7 @@
 </div>
 
 <style>
-  /* Skeleton loading animation */
+
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
@@ -158,7 +154,7 @@
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-  
+
   .profiles-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -166,14 +162,14 @@
     width: 100%;
     margin-bottom: 24px;
   }
-  
+
   .skeleton-card {
     background-color: var(--bg-secondary, #f8f9fa);
     border-radius: var(--radius-md);
     padding: var(--space-2);
     border: 1px solid var(--border-color, #e5e7eb);
   }
-  
+
   .profile-card-container {
     background-color: var(--bg-secondary, #f8f9fa);
     border-radius: var(--radius-md);
@@ -185,44 +181,44 @@
     display: flex;
     flex-direction: column;
   }
-  
+
   .profile-card-container:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     border-color: var(--color-primary, #3b82f6);
   }
-  
+
   .profile-card-container-dark {
     background-color: var(--dark-bg-secondary, #1f2937);
     border-color: var(--border-color-dark, #374151);
   }
-  
+
   .profile-card-container-dark:hover {
     border-color: var(--color-primary, #3b82f6);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
   }
-  
+
   .text-primary {
     color: var(--text-primary);
   }
-  
+
   .text-primary-dark {
     color: var(--dark-text-primary);
   }
-  
+
   @media (max-width: 768px) {
     .profiles-grid {
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
   }
-  
+
   @media (max-width: 576px) {
     .profiles-grid {
       grid-template-columns: repeat(2, 1fr);
       gap: var(--space-2);
     }
   }
-  
+
   .view-all-button {
     display: flex;
     align-items: center;
@@ -237,18 +233,18 @@
     border: none;
     cursor: pointer;
   }
-  
+
   .view-all-button:hover {
     background-color: var(--color-primary-dark, #2563eb);
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
-  
+
   .view-all-button svg {
     transition: transform 0.2s ease;
   }
-  
+
   .view-all-button:hover svg {
     transform: translateX(2px);
   }
-</style> 
+</style>

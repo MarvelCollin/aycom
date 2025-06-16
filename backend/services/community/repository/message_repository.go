@@ -48,7 +48,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 	log.Printf("Saving message to database: ID=%s, ChatID=%s, SenderID=%s",
 		message.ID, message.ChatID, message.SenderID)
 
-	// Validate inputs
 	if message.ID == "" {
 		log.Printf("Error: Message ID is empty")
 		return fmt.Errorf("message ID cannot be empty")
@@ -62,7 +61,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		return fmt.Errorf("sender ID cannot be empty")
 	}
 
-	// Parse UUIDs with error handling
 	msgID, err := uuid.Parse(message.ID)
 	if err != nil {
 		log.Printf("Error parsing message ID: %v", err)
@@ -81,7 +79,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		return fmt.Errorf("invalid sender ID format: %v", err)
 	}
 
-	// Verify chat exists
 	var chatCount int64
 	err = r.db.Table("chats").Where("chat_id = ?", chatID).Count(&chatCount).Error
 	if err != nil {
@@ -93,7 +90,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		return fmt.Errorf("chat with ID %s does not exist", message.ChatID)
 	}
 
-	// Verify sender is a participant
 	var participantCount int64
 	err = r.db.Table("chat_participants").
 		Where("chat_id = ? AND user_id = ?", chatID, senderID).
@@ -107,7 +103,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		return fmt.Errorf("user %s is not a participant in chat %s", message.SenderID, message.ChatID)
 	}
 
-	// Create the message
 	dbMessage := &MessageDBModel{
 		ID:               msgID,
 		ChatID:           chatID,
@@ -124,7 +119,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		UpdatedAt:        time.Now(),
 	}
 
-	// Use a transaction to ensure data integrity
 	tx := r.db.Begin()
 	if tx.Error != nil {
 		log.Printf("Error starting transaction: %v", tx.Error)
@@ -138,7 +132,6 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		return fmt.Errorf("failed to save message: %v", err)
 	}
 
-	// Update chat's updated_at timestamp
 	err = tx.Table("chats").Where("chat_id = ?", chatID).
 		Update("updated_at", time.Now()).Error
 	if err != nil {

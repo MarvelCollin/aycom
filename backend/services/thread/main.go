@@ -70,10 +70,8 @@ func initThreadService() {
 
 	userClient := connectToUserService()
 
-	// Create a user repository adapter using the user client
 	userRepo := repository.NewUserRepositoryAdapter(userClient)
 
-	// Create the user relation service for checking reply permissions
 	userRelationSvc := service.NewUserRelationService(userClient)
 
 	threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)

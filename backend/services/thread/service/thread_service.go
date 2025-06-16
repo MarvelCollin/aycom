@@ -1,19 +1,19 @@
 package service
 
 import (
+	"aycom/backend/proto/thread"
 	"context"
 	"errors"
 	"log"
 	"time"
 
-	"aycom/backend/proto/thread"
-	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/repository"
-
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/repository"
 )
 
 type ThreadService interface {
@@ -105,18 +105,14 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 		return nil, status.Errorf(codes.Internal, "Failed to create thread: %v", err)
 	}
 
-	// Handle poll creation if poll data is provided
 	if req.Poll != nil && req.Poll.Question != "" && len(req.Poll.Options) >= 2 {
-		// Create a poll for the thread
+
 		pollID := uuid.New()
 
-		// Set default end time to 24 hours if not provided
 		closesAt := time.Now().Add(24 * time.Hour)
 		if req.Poll.EndTime != nil {
 			closesAt = req.Poll.EndTime.AsTime()
 		}
-
-		// The isAnonymous field will be stored in the Poll model in a future update
 
 		whoCanVote := "Everyone"
 
@@ -130,11 +126,10 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 			UpdatedAt:  time.Now(),
 		}
 
-		// Create poll options
 		pollOptions := make([]*model.PollOption, 0, len(req.Poll.Options))
 		for _, optionText := range req.Poll.Options {
 			if optionText == "" {
-				continue // Skip empty options
+				continue 
 			}
 			option := &model.PollOption{
 				OptionID:  uuid.New(),
@@ -145,16 +140,14 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 			pollOptions = append(pollOptions, option)
 		}
 
-		// Only create poll if we have valid options
 		if len(pollOptions) >= 2 {
-			// Transaction to ensure both poll and options are created
+
 			err := s.threadRepo.RunInTransaction(func(tx *gorm.DB) error {
-				// Create poll
+
 				if err := tx.Create(poll).Error; err != nil {
 					return err
 				}
 
-				// Create poll options
 				for _, option := range pollOptions {
 					if err := tx.Create(option).Error; err != nil {
 						return err
@@ -166,7 +159,7 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 
 			if err != nil {
 				log.Printf("Failed to create poll for thread %s: %v", threadID, err)
-				// Continue with thread creation even if poll creation fails
+
 			}
 		}
 	}
@@ -244,14 +237,12 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 
 	log.Printf("Getting threads for user ID: %s, page: %d, limit: %d", userID, page, limit)
 
-	// Validate UUID
 	_, err := uuid.Parse(userID)
 	if err != nil {
 		log.Printf("Invalid UUID format for user ID %s: %v", userID, err)
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid user ID format: %v", err)
 	}
 
-	// Database query with panic recovery
 	var threads []*model.Thread
 	func() {
 		defer func() {

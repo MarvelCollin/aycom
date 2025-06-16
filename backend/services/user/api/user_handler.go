@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"aycom/backend/proto/user"
-	"aycom/backend/services/user/model"
-	"aycom/backend/services/user/service"
 	"context"
 	"log"
 	"reflect"
@@ -11,6 +9,9 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/service"
 )
 
 type UserHandler struct {
@@ -183,10 +184,8 @@ func (h *UserHandler) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequ
 	searchQuery := ""
 	newsletterOnly := false
 
-	// Check if the request has GetSearchQuery and GetNewsletterOnly fields
-	// in case we're dealing with an older protobuf definition
 	if req != nil {
-		// Use reflection to check if the fields exist
+
 		reqValue := reflect.ValueOf(req)
 		searchQueryMethod := reqValue.MethodByName("GetSearchQuery")
 		newsletterOnlyMethod := reqValue.MethodByName("GetNewsletterOnly")

@@ -133,7 +133,7 @@
   let posts: Thread[] = [];
   let replies: Reply[] = [];
   let likes: Thread[] = [];
-  let media: ThreadMedia[] = [];
+  let media: Thread[] = []; // Change to Thread[] type to match the other tabs
   let bookmarks: Thread[] = [];
   
   // UI state
@@ -363,29 +363,29 @@
   
   async function loadRepliesForThread(threadId) {
     try {
-      const response = await getThreadReplies(threadId);
+      const response: any = await getThreadReplies(threadId);
       if (response && response.replies) {
         console.log(`Loaded ${response.replies.length} replies for thread ${threadId}`);
         
-        const convertedReplies = response.replies.map(reply => {
+        const convertedReplies = response.replies.map((reply: any) => {
           // Standardize the reply data structure regardless of API format
-          const replyData = reply.reply || reply;
-          const userData = reply.user || {};
+          const replyData = reply.reply || reply || {};
+          const userData = reply.user || {} as any;
           
           const enrichedReply = {
-            id: replyData.id,
+            id: replyData.id || '',
             thread_id: replyData.thread_id || threadId,
             content: replyData.content || '',
             created_at: replyData.created_at || new Date().toISOString(),
-            author_id: userData.id || replyData.user_id || replyData.author_id,
-            author_username: userData.username || reply.author_username || reply.username,
-            author_name: userData.name || userData.display_name || reply.author_name || reply.displayName,
-            author_avatar: userData.profile_picture_url || reply.author_avatar || reply.avatar,
-            parent_id: replyData.parent_id,
-            is_liked: reply.is_liked || false,
-            is_bookmarked: reply.is_bookmarked || false,
-            likes_count: reply.likes_count || 0,
-            replies_count: reply.replies_count || 0
+            author_id: userData.id || replyData.user_id || replyData.author_id || '',
+            author_username: userData.username || replyData.author_username || replyData.username || '',
+            author_name: userData.name || userData.display_name || replyData.author_name || replyData.displayName || '',
+            author_avatar: userData.profile_picture_url || replyData.author_avatar || replyData.avatar || '',
+            parent_id: replyData.parent_id || '',
+            is_liked: replyData.is_liked || false,
+            is_bookmarked: replyData.is_bookmarked || false,
+            likes_count: replyData.likes_count || 0,
+            replies_count: replyData.replies_count || 0
           };
           
           const convertedReply = ensureTweetFormat(enrichedReply);
@@ -523,6 +523,10 @@
         const likesData = await getUserLikedThreads(profileUserId);
         likes = likesData.threads || [];
         console.log(`Loaded ${likes.length} likes`);
+      } else if (tab === 'media') {
+        const mediaData = await getUserMedia(profileUserId);
+        media = mediaData.threads || [];
+        console.log(`Loaded ${media.length} media posts`);
       }
     } catch (error) {
       console.error(`Error loading tab content for ${tab}:`, error);
@@ -1218,6 +1222,9 @@
       if (activeTab !== 'likes') {
         setTimeout(() => loadTabContent('likes'), 2000);
       }
+      if (activeTab !== 'media') {
+        setTimeout(() => loadTabContent('media'), 2500);
+      }
     } catch (error) {
       console.error('Error loading profile data:', error);
       errorMessage = 'Failed to load profile data. Please try again later.';
@@ -1384,6 +1391,12 @@
         >
           Likes
         </button>
+        <button 
+          class="profile-tab {activeTab === 'media' ? 'active' : ''}"
+          on:click={() => setActiveTab('media')}
+        >
+          Media
+        </button>
       </div>
       
       <div class="profile-content">
@@ -1449,6 +1462,19 @@
               </div>
             {:else}
               {#each likes as thread (thread.id)}
+                <TweetCard tweet={ensureTweetFormat(thread)} />
+              {/each}
+            {/if}
+          </div>
+        {:else if activeTab === 'media'}
+          <!-- Media tab content -->
+          <div class="tab-content">
+            {#if media.length === 0}
+              <div class="empty-state">
+                <p>No media posts yet</p>
+              </div>
+            {:else}
+              {#each media as thread (thread.id)}
                 <TweetCard tweet={ensureTweetFormat(thread)} />
               {/each}
             {/if}

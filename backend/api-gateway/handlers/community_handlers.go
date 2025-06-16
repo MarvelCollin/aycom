@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	communityProto "aycom/backend/proto/community"
 	userProto "aycom/backend/proto/user"
 	"context"
@@ -15,9 +14,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
-// calculateTotalPages calculates the total number of pages based on total items and items per page
 func calculateTotalPages(total, perPage int) int {
 	if total <= 0 || perPage <= 0 {
 		return 1
@@ -210,8 +210,7 @@ func CreateCommunity(c *gin.Context) {
 
 			if err != nil {
 				log.Printf("ERROR: Failed to create community request in user service: %v", err)
-				// Even if creating the community request fails, we continue since the community itself was created
-				// But we log a detailed error to help with troubleshooting
+
 				log.Printf("SYNC WARNING: Community with ID %s exists in community service but not in community_requests table", resp.Community.Id)
 			} else {
 				log.Printf("Successfully created community request in user service for community ID: %s, request ID: %s",
@@ -630,16 +629,15 @@ func GetCommunityByID(c *gin.Context) {
 }
 
 func ListCommunities(c *gin.Context) {
-	// Try to get user ID from JWT token first
+
 	var userID string
 	tokenUserID, exists := c.Get("userId")
 
-	// If authenticated, use token user ID
 	if exists {
 		userID = tokenUserID.(string)
 		log.Printf("Authenticated user ID: %s", userID)
 	} else {
-		// If not authenticated, use the user ID from URL parameter or query
+
 		if paramUserID := c.Param("userId"); paramUserID != "" {
 			userID = paramUserID
 			log.Printf("Using URL parameter user ID: %s", userID)
@@ -652,7 +650,6 @@ func ListCommunities(c *gin.Context) {
 	page := 1
 	limit := 25
 
-	// Only check the query parameter for filter
 	filter := c.Query("filter")
 	log.Printf("Processing community list request with filter: %s, userID: %s", filter, userID)
 
@@ -687,7 +684,7 @@ func ListCommunities(c *gin.Context) {
 	var err error
 
 	if filter == "joined" && userID != "" {
-		// Get joined communities for the user
+
 		userCommunitiesResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId:     userID,
 			Status:     "member",
@@ -708,7 +705,7 @@ func ListCommunities(c *gin.Context) {
 			TotalCount:  userCommunitiesResp.TotalCount,
 		}
 	} else if filter == "pending" && userID != "" {
-		// Get pending join request communities for the user
+
 		userCommunitiesResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId:     userID,
 			Status:     "pending",
@@ -729,12 +726,12 @@ func ListCommunities(c *gin.Context) {
 			TotalCount:  userCommunitiesResp.TotalCount,
 		}
 	} else if filter == "discover" && userID != "" {
-		// First, get all approved communities
+
 		allCommunitiesResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 			Query:      query,
 			Categories: categories,
 			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit * 2), // Get more to filter
+			Limit:      int32(limit * 2), 
 			IsApproved: true,
 		})
 
@@ -744,11 +741,10 @@ func ListCommunities(c *gin.Context) {
 			return
 		}
 
-		// Then get user's joined communities to filter them out
 		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId: userID,
 			Status: "member",
-			Limit:  1000, // Get all to filter effectively
+			Limit:  1000, 
 		})
 
 		joinedCommunityMap := make(map[string]bool)
@@ -758,11 +754,10 @@ func ListCommunities(c *gin.Context) {
 			}
 		}
 
-		// Also get user's pending communities to filter them out
 		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId: userID,
 			Status: "pending",
-			Limit:  1000, // Get all to filter effectively
+			Limit:  1000, 
 		})
 
 		pendingCommunityMap := make(map[string]bool)
@@ -772,7 +767,6 @@ func ListCommunities(c *gin.Context) {
 			}
 		}
 
-		// Filter communities: include only those that are not joined or pending
 		var filteredCommunities []*communityProto.Community
 		for _, community := range allCommunitiesResp.Communities {
 			if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
@@ -780,7 +774,6 @@ func ListCommunities(c *gin.Context) {
 			}
 		}
 
-		// Limit the results to the requested page size
 		endIdx := limit
 		if endIdx > len(filteredCommunities) {
 			endIdx = len(filteredCommunities)
@@ -796,7 +789,7 @@ func ListCommunities(c *gin.Context) {
 			TotalCount:  int32(len(filteredCommunities)),
 		}
 	} else {
-		// Default: get all approved communities
+
 		resp, err = CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 			Query:      query,
 			Categories: categories,
@@ -864,7 +857,7 @@ func ListCommunities(c *gin.Context) {
 }
 
 func GetDiscoverCommunities(c *gin.Context) {
-	// Get parameters
+
 	page := 1
 	limit := 25
 
@@ -897,7 +890,6 @@ func GetDiscoverCommunities(c *gin.Context) {
 
 	log.Printf("Getting discover communities")
 
-	// Simply get all approved communities
 	resp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 		Query:      query,
 		Categories: categories,
@@ -912,7 +904,6 @@ func GetDiscoverCommunities(c *gin.Context) {
 		return
 	}
 
-	// Convert the communities to the response format
 	communitiesResult := make([]gin.H, 0)
 	if resp != nil && resp.Communities != nil {
 		for _, community := range resp.Communities {
@@ -1234,7 +1225,6 @@ func AddMember(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
 		CommunityId: communityID,
 		UserId:      userID.(string),
@@ -1245,7 +1235,6 @@ func AddMember(c *gin.Context) {
 		return
 	}
 
-	// Check if the current user is an admin
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1324,7 +1313,6 @@ func UpdateMemberRole(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
 		CommunityId: communityID,
 		UserId:      userID.(string),
@@ -1335,7 +1323,6 @@ func UpdateMemberRole(c *gin.Context) {
 		return
 	}
 
-	// Check if the current user is an admin
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1404,9 +1391,8 @@ func RemoveMember(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Self-removal is always allowed
 	if userID.(string) != memberID {
-		// Check if the current user is an admin of the community
+
 		isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
 			CommunityId: communityID,
 			UserId:      userID.(string),
@@ -1417,7 +1403,6 @@ func RemoveMember(c *gin.Context) {
 			return
 		}
 
-		// Check if the current user is an admin
 		membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 			CommunityId: communityID,
 		})
@@ -1485,7 +1470,6 @@ func AddRule(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1597,7 +1581,6 @@ func RemoveRule(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1654,7 +1637,6 @@ func RequestToJoin(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the user is already a member
 	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
 		CommunityId: communityID,
 		UserId:      userID.(string),
@@ -1708,7 +1690,6 @@ func ListJoinRequests(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1783,7 +1764,6 @@ func ApproveJoinRequest(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1846,7 +1826,6 @@ func RejectJoinRequest(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if the current user is an admin of the community
 	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 		CommunityId: communityID,
 	})
@@ -1903,7 +1882,6 @@ func CheckMembershipStatus(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if user is a member
 	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
 		CommunityId: communityID,
 		UserId:      userID.(string),
@@ -1916,7 +1894,7 @@ func CheckMembershipStatus(c *gin.Context) {
 	}
 
 	if isMemberResp.IsMember {
-		// Get user role
+
 		membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
 			CommunityId: communityID,
 		})
@@ -1939,7 +1917,6 @@ func CheckMembershipStatus(c *gin.Context) {
 		return
 	}
 
-	// Check if user has a pending join request
 	pendingResp, err := CommunityClient.HasPendingJoinRequest(ctx, &communityProto.HasPendingJoinRequestRequest{
 		CommunityId: communityID,
 		UserId:      userID.(string),

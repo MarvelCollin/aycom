@@ -1,7 +1,6 @@
 <script lang="ts">
   import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
 
-  // Types
   interface Rule {
     id: string;
     title: string;
@@ -9,7 +8,6 @@
     order?: number;
   }
 
-  // Props
   export let rules: Rule[] = [];
 </script>
 

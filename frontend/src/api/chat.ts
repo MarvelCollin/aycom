@@ -515,10 +515,25 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
     const token = getAuthToken();
     logger.debug(`Sending message to chat ${chatId}`, { content: data.content });
 
+    // Explicitly create the message data object with proper validation
     const messageData = {
-      content: data.content,
-      ...(data.attachments && data.attachments.length > 0 ? { attachments: data.attachments } : {})
+      content: (data.content || '').trim() // Ensure content field exists, is properly named (lowercase), and trimmed
     };
+    
+    // Validate content is not empty
+    if (!messageData.content || messageData.content.length === 0) {
+      logger.error('Cannot send empty message');
+      throw new Error('Message content cannot be empty');
+    }
+    
+    // Add attachments if they exist (as a separate property, not through spread)
+    if (data.attachments && data.attachments.length > 0) {
+      messageData['attachments'] = data.attachments;
+    }
+    
+    // Stringify the JSON directly for more control
+    const jsonBody = JSON.stringify(messageData);
+    logger.debug('Message payload being sent (raw JSON):', jsonBody);
 
     const requestUrl = `${API_BASE_URL}/chats/${chatId}/messages`;
     logger.info(`Making API request to: ${requestUrl}`);
@@ -532,7 +547,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify(messageData),
+        body: jsonBody, // Use our pre-stringified JSON
         credentials: 'include'
       });
       
@@ -585,8 +600,8 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
             throw new Error('Session error: Please log out and log in again.');
           }
           
-          logger.warn(`Using local fallback due to server error: ${errorMessage}`);
-          return createFallbackMessage(chatId, data);
+          // For server errors, don't use fallback - throw the actual error
+          throw new Error(`Server error: ${errorMessage}`);
         } else {
           throw new Error(errorMessage);
         }
@@ -596,8 +611,8 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
       logger.debug('Raw response text:', responseText);
       
       if (!responseText || responseText.trim() === '') {
-        logger.warn(`Empty response for sending message to chat ${chatId}`);
-        return createFallbackMessage(chatId, data);
+        logger.error(`Empty response for sending message to chat ${chatId}`);
+        throw new Error('Server returned empty response');
       }
 
       try {
@@ -609,7 +624,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         return responseData;
       } catch (parseError) {
         logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
-        return createFallbackMessage(chatId, data);
+        throw new Error('Invalid response from server');
       }
     } catch (apiError) {
       if (apiError instanceof Error) {
@@ -624,44 +639,6 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
     logger.error(`Send message to chat ${chatId} failed:`, error);
     throw error;
   }
-}
-
-function createFallbackMessage(chatId: string, data: Record<string, any>) {
-  const currentUserId = getUserId();
-  const messageTimestamp = Date.now();
-  const tempMessageId = `temp-${messageTimestamp}`;
-  
-  logger.debug(`Creating fallback message with user ID: ${currentUserId}`);
-  
-  let senderId = "";
-  if (currentUserId) {
-    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId);
-    
-    if (isValidUUID) {
-      senderId = currentUserId;
-    } else {
-      logger.warn(`Invalid UUID format detected for user ID: ${currentUserId}, using temp ID`);
-      senderId = `local-${messageTimestamp}`;
-    }
-  } else {
-    logger.warn("No user ID available, using temp ID");
-    senderId = `local-${messageTimestamp}`;
-  }
-  
-  return {
-    message_id: tempMessageId,
-    message: {
-      id: tempMessageId,
-      chat_id: chatId,
-      sender_id: senderId,
-      content: data.content,
-      timestamp: messageTimestamp / 1000,
-      is_read: false,
-      is_edited: false,
-      is_deleted: false,
-      is_local: true,
-    }
-  };
 }
 
 export async function listMessages(chatId: string) {

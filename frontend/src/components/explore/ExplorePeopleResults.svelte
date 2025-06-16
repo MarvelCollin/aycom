@@ -8,17 +8,15 @@
   import Pagination from '../common/Pagination.svelte';
   import PerPageSelector from '../common/PerPageSelector.svelte';
   import { formatNumber } from '../../utils/common';
-  
+
   const logger = createLoggerWithPrefix('ExplorePeopleResults');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   const { getAuthState } = useAuth();
-  
-  // Reactive declarations
+
   $: isDarkMode = $theme === 'dark';
   $: authState = getAuthState ? getAuthState() : { user_id: null, is_authenticated: false };
-  
-  // Props
+
   export let peopleResults: Array<{
     id: string;
     username: string;
@@ -33,36 +31,30 @@
   export let peoplePerPage = 20;
   export let currentPage = 1;
   export let totalCount = 0;
-  
-  // Calculate total pages
+
   $: totalPages = Math.max(1, Math.ceil(totalCount / peoplePerPage));
-  
-  // Handle page change
+
   function handlePageChange(event: CustomEvent<number>) {
     logger.debug('Changing page', { page: event.detail });
     currentPage = event.detail;
     dispatch('pageChange', event.detail);
   }
-  
-  // Page size options
+
   const perPageOptions = [25, 30, 35];
-  
-  // Handle per page change
+
   function handlePerPageChange(event: CustomEvent<number>) {
     const newValue = event.detail;
     logger.debug('Changing results per page', { value: newValue });
     peoplePerPage = newValue;
     dispatch('peoplePerPageChange', newValue);
   }
-  
-  // Handle follow user
+
   function handleFollow(userId: string) {
     logger.debug('Follow request initiated', { userId });
-    
-    // Find the user in results
+
     const userIndex = peopleResults.findIndex(user => user.id === userId);
     if (userIndex !== -1) {
-      // Create a copy of the array with the updated user
+
       peopleResults = [
         ...peopleResults.slice(0, userIndex),
         {
@@ -72,30 +64,26 @@
         ...peopleResults.slice(userIndex + 1)
       ];
     }
-    
-    // Dispatch event to parent
+
     dispatch('follow', userId);
   }
-  
-  // Handle profile click
+
   function handleProfileClick(userId: string) {
     logger.debug('Profile click', { userId });
     dispatch('profileClick', userId);
-    
-    // Navigate to user profile
+
     const user = peopleResults.find(u => u.id === userId);
     if (user) {
       window.location.href = `/user/${user.username}`;
     }
   }
-  
-  // Log when people results change
+
   $: {
     if (!isLoading) {
       if (peopleResults && peopleResults.length > 0) {
         logger.debug('People results loaded', { count: peopleResults.length });
         console.log('People results data:', peopleResults);
-        // Check for any issues with the data structure
+
         for (let i = 0; i < peopleResults.length; i++) {
           const person = peopleResults[i];
           console.log(`Person ${i}:`, {
@@ -108,8 +96,7 @@
             followerCount: person.followerCount,
             isFollowing: person.isFollowing
           });
-          
-          // Check for potential issues
+
           if (!person.id) console.error('Person missing ID!');
           if (!person.username) console.error('Person missing username!');
           if (!person.displayName) console.error('Person missing display name!');
@@ -140,7 +127,7 @@
               <div class="twitter-profile-placeholder">{user.displayName.charAt(0)}</div>
             {/if}
           </div>
-          
+
           <div class="twitter-profile-content">
             <div class="twitter-profile-header">
               <div class="twitter-profile-info" on:click={() => handleProfileClick(user.id)}>
@@ -159,7 +146,7 @@
                   <p class="twitter-profile-bio">{user.bio}</p>
                 {/if}
               </div>
-              
+
               <div class="twitter-profile-follow">
                 <button 
                   class="twitter-follow-button {user.isFollowing ? 'following' : ''}"
@@ -169,7 +156,7 @@
                 </button>
               </div>
             </div>
-            
+
             {#if user.followerCount > 0}
               <div class="twitter-profile-stats">
                 <span class="twitter-profile-followers">
@@ -181,7 +168,7 @@
         </div>
       {/each}
     </div>
-    
+
     <div class="twitter-people-footer">
       <div class="twitter-pagination-wrapper">
         <Pagination 
@@ -191,7 +178,7 @@
           on:pageChange={handlePageChange}
         />
       </div>
-      
+
       <div class="twitter-perpage-wrapper">
         <PerPageSelector 
           perPage={peoplePerPage} 
@@ -220,14 +207,14 @@
   .people-results {
     width: 100%;
   }
-  
+
   .people-loading {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 0 0 16px 0;
   }
-  
+
   .twitter-profile-skeleton {
     height: 80px;
     background: linear-gradient(
@@ -239,7 +226,7 @@
     border-radius: 16px;
     animation: pulse 1.5s ease-in-out infinite;
   }
-  
+
   .people-results-dark .twitter-profile-skeleton {
     background: linear-gradient(
       90deg,
@@ -248,7 +235,7 @@
       var(--dark-bg-tertiary) 100%
     );
   }
-  
+
   @keyframes pulse {
     0% {
       opacity: 0.6;
@@ -260,13 +247,13 @@
       opacity: 0.6;
     }
   }
-  
+
   .twitter-people-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .twitter-profile-card {
     display: flex;
     gap: 12px;
@@ -274,15 +261,15 @@
     border-radius: 16px;
     transition: background-color 0.2s;
   }
-  
+
   .twitter-profile-card:hover {
     background-color: var(--hover-bg);
   }
-  
+
   .people-results-dark .twitter-profile-card:hover {
     background-color: var(--dark-hover-bg);
   }
-  
+
   .twitter-profile-avatar {
     width: 48px;
     height: 48px;
@@ -291,13 +278,13 @@
     flex-shrink: 0;
     cursor: pointer;
   }
-  
+
   .twitter-profile-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   .twitter-profile-placeholder {
     width: 100%;
     height: 100%;
@@ -309,37 +296,37 @@
     font-weight: bold;
     font-size: 20px;
   }
-  
+
   .people-results-dark .twitter-profile-placeholder {
     background-color: var(--dark-bg-tertiary);
     color: var(--dark-text-secondary);
   }
-  
+
   .twitter-profile-content {
     flex: 1;
     min-width: 0;
   }
-  
+
   .twitter-profile-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 4px;
   }
-  
+
   .twitter-profile-info {
     flex: 1;
     min-width: 0;
     cursor: pointer;
   }
-  
+
   .twitter-profile-name-row {
     display: flex;
     align-items: center;
     gap: 4px;
     margin-bottom: 1px;
   }
-  
+
   .twitter-profile-name {
     font-weight: bold;
     color: var(--text-primary);
@@ -347,17 +334,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
+
   .people-results-dark .twitter-profile-name {
     color: var(--dark-text-primary);
   }
-  
+
   .twitter-verified-badge {
     display: flex;
     align-items: center;
     flex-shrink: 0;
   }
-  
+
   .twitter-profile-username {
     color: var(--text-secondary);
     font-size: 14px;
@@ -366,11 +353,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
+
   .people-results-dark .twitter-profile-username {
     color: var(--dark-text-secondary);
   }
-  
+
   .twitter-profile-bio {
     font-size: 14px;
     color: var(--text-primary);
@@ -381,16 +368,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
+
   .people-results-dark .twitter-profile-bio {
     color: var(--dark-text-primary);
   }
-  
+
   .twitter-profile-follow {
     flex-shrink: 0;
     margin-left: 16px;
   }
-  
+
   .twitter-follow-button {
     background-color: var(--text-primary);
     color: var(--bg-primary);
@@ -403,54 +390,54 @@
     transition: background-color 0.2s;
     white-space: nowrap;
   }
-  
+
   .twitter-follow-button:hover {
     background-color: var(--text-primary);
     opacity: 0.9;
   }
-  
+
   .twitter-follow-button.following {
     background-color: transparent;
     color: var(--text-primary);
     border: 1px solid var(--border-color);
   }
-  
+
   .twitter-follow-button.following:hover {
     border-color: rgba(var(--color-danger-rgb), 0.4);
     color: var(--color-danger);
     background-color: rgba(var(--color-danger-rgb), 0.1);
   }
-  
+
   .people-results-dark .twitter-follow-button {
     background-color: var(--dark-text-primary);
     color: var(--dark-bg-primary);
   }
-  
+
   .people-results-dark .twitter-follow-button.following {
     background-color: transparent;
     color: var(--dark-text-primary);
     border: 1px solid var(--dark-border-color);
   }
-  
+
   .twitter-profile-stats {
     font-size: 14px;
     color: var(--text-secondary);
     margin-top: 4px;
   }
-  
+
   .people-results-dark .twitter-profile-stats {
     color: var(--dark-text-secondary);
   }
-  
+
   .twitter-profile-followers strong {
     color: var(--text-primary);
     font-weight: bold;
   }
-  
+
   .people-results-dark .twitter-profile-followers strong {
     color: var(--dark-text-primary);
   }
-  
+
   .twitter-people-footer {
     display: flex;
     justify-content: space-between;
@@ -459,70 +446,70 @@
     flex-wrap: wrap;
     gap: 16px;
   }
-  
+
   .twitter-pagination-wrapper {
     flex: 1;
   }
-  
+
   .twitter-perpage-wrapper {
     flex-shrink: 0;
   }
-  
+
   .twitter-people-empty {
     padding: 40px 16px;
     text-align: center;
   }
-  
+
   .twitter-people-empty-icon {
     color: var(--text-secondary);
     margin-bottom: 16px;
   }
-  
+
   .people-results-dark .twitter-people-empty-icon {
     color: var(--dark-text-secondary);
   }
-  
+
   .twitter-people-empty-title {
     font-size: 20px;
     font-weight: bold;
     color: var(--text-primary);
     margin: 0 0 8px;
   }
-  
+
   .people-results-dark .twitter-people-empty-title {
     color: var(--dark-text-primary);
   }
-  
+
   .twitter-people-empty-text {
     font-size: 15px;
     color: var(--text-secondary);
     margin: 0;
   }
-  
+
   .people-results-dark .twitter-people-empty-text {
     color: var(--dark-text-secondary);
   }
-  
+
   @media (max-width: 640px) {
     .twitter-profile-bio {
       display: none;
     }
-    
+
     .twitter-follow-button {
       padding: 4px 12px;
       font-size: 13px;
     }
-    
+
     .twitter-people-footer {
       flex-direction: column;
       align-items: center;
       gap: 12px;
     }
-    
+
     .twitter-pagination-wrapper {
       width: 100%;
       display: flex;
       justify-content: center;
     }
   }
-</style> 
+</style>

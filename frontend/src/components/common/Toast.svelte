@@ -81,40 +81,39 @@
     width: 100%;
     max-width: 24rem;
   }
-  
-  /* Position classes */
+
   .toast-top-left {
     top: 1.25rem;
     left: 1.25rem;
   }
-  
+
   .toast-top-center {
     top: 1.25rem;
     left: 50%;
     transform: translateX(-50%);
   }
-  
+
   .toast-top-right {
     top: 1.25rem;
     right: 1.25rem;
   }
-  
+
   .toast-bottom-left {
     bottom: 1.25rem;
     left: 1.25rem;
   }
-  
+
   .toast-bottom-center {
     bottom: 1.25rem;
     left: 50%;
     transform: translateX(-50%);
   }
-  
+
   .toast-bottom-right {
     bottom: 1.25rem;
     right: 1.25rem;
   }
-  
+
   .toast-item {
     margin-bottom: 0.75rem;
     border-radius: 0.5rem;
@@ -124,60 +123,58 @@
     color: white;
     backdrop-filter: blur(4px);
   }
-  
-  /* Toast type styles with dark mode support */
+
   .toast-info {
     background-color: rgba(29, 161, 242, 0.95);
     border-left: 4px solid #1a91da;
   }
-  
+
   .toast-success {
     background-color: rgba(52, 211, 153, 0.95);
     border-left: 4px solid #10b981;
   }
-  
+
   .toast-warning {
     background-color: rgba(251, 191, 36, 0.95);
     color: rgba(31, 41, 55, 0.95);
     border-left: 4px solid #f59e0b;
   }
-  
+
   .toast-error {
     background-color: rgba(239, 68, 68, 0.95);
     border-left: 4px solid #dc2626;
   }
-  
-  /* Dark mode adjustments */
+
   :global([data-theme="dark"]) .toast-info {
     background-color: rgba(29, 161, 242, 0.85);
   }
-  
+
   :global([data-theme="dark"]) .toast-success {
     background-color: rgba(52, 211, 153, 0.85);
   }
-  
+
   :global([data-theme="dark"]) .toast-warning {
     background-color: rgba(251, 191, 36, 0.85);
     color: rgba(31, 41, 55, 0.95);
   }
-  
+
   :global([data-theme="dark"]) .toast-error {
     background-color: rgba(239, 68, 68, 0.85);
   }
-  
+
   .toast-content {
     display: flex;
     align-items: center;
     padding: 0.875rem 1rem;
   }
-  
+
   .toast-icon {
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  
+
   .toast-message {
     margin-left: 0.75rem;
     flex: 1;
@@ -185,16 +182,16 @@
     font-weight: 500;
     line-height: 1.4;
   }
-  
+
   .toast-message p {
     margin: 0;
   }
-  
+
   .toast-close {
     margin-left: 1rem;
     flex-shrink: 0;
   }
-  
+
   .toast-close-button {
     display: inline-flex;
     align-items: center;
@@ -206,26 +203,24 @@
     padding: 0;
     transition: background-color 0.2s;
   }
-  
+
   .toast-close-button:hover {
     background-color: rgba(255, 255, 255, 0.2);
   }
-  
+
   .toast-close-button:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
   }
-  
-  /* Dark text color for warning toast close button */
+
   .toast-warning .toast-close-button {
     color: rgba(31, 41, 55, 0.95);
   }
-  
+
   .toast-warning .toast-close-button:hover {
     background-color: rgba(0, 0, 0, 0.1);
   }
-  
-  /* Screen reader only class */
+
   .sr-only {
     position: absolute;
     width: 1px;

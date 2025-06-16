@@ -10,11 +10,7 @@
   const dispatch = createEventDispatcher();
 
   export let onCancel: () => void;
-  
-  // Remove the onUserSelect prop that's causing issues
-  // export let onUserSelect: (user: StandardUser) => void;
-  
-  // Add optional props for user results and loading state
+
   export let isLoadingUsers = false;
   export let userSearchResults: StandardUser[] = [];
   export let searchKeyword = '';
@@ -28,26 +24,25 @@
   onMount(async () => {
     await loadUsers();
   });
-  
+
   async function loadUsers() {
     isLoading = true;
     try {
-      console.log('Loading users...'); // Debug log
-      
-      // Simple test - try calling the API directly first
+      console.log('Loading users...'); 
+
       const testResponse = await fetch('http://localhost:8083/api/v1/users?limit=50', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         }
       });
-      
+
       console.log('Direct API test - Status:', testResponse.status);
-      
+
       if (testResponse.ok) {
         const testData = await testResponse.json();
         console.log('Direct API test - Data:', testData);
-        
+
         if (testData && testData.users && Array.isArray(testData.users)) {
           users = transformApiUsers(testData.users);
           filteredUsers = users;
@@ -55,34 +50,32 @@
           return;
         }
       }
-      
-      // Fallback to the original API call
+
       console.log('Trying getAllUsers API call...');
       const response = await getAllUsers(1, 50);
-      console.log('getAllUsers response:', response); // Debug log
-      
-      // Handle the response structure - getAllUsers returns {users: [...], success: boolean}
+      console.log('getAllUsers response:', response); 
+
       if (response && response.users && Array.isArray(response.users)) {
         users = transformApiUsers(response.users);
-        console.log('Transformed users count:', users.length); // Debug log
+        console.log('Transformed users count:', users.length); 
       } else if (response && Array.isArray(response)) {
-        // Fallback if response is directly an array
+
         users = transformApiUsers(response);
-        console.log('Transformed users count (direct array):', users.length); // Debug log
+        console.log('Transformed users count (direct array):', users.length); 
       } else {
         console.error('Unexpected response format:', response);
         toastStore.showToast('Unexpected response format from server', 'error');
         users = [];
       }
-      
+
       filteredUsers = users;
-      console.log('Final filtered users count:', filteredUsers.length); // Debug log
-      
+      console.log('Final filtered users count:', filteredUsers.length); 
+
       if (users.length === 0) {
         toastStore.showToast('No users found', 'warning');
       }
     } catch (error) {
-      console.error('Error in loadUsers:', error); // Debug log
+      console.error('Error in loadUsers:', error); 
       logger.error('Failed to load users', error);
       toastStore.showToast(`Failed to load users: ${error instanceof Error ? error.message : String(error)}`, 'error');
       users = [];
@@ -109,20 +102,17 @@
         (user.display_name && user.display_name.toLowerCase().includes(query))
       );
     }, 300);
-    
-    // Dispatch search event for parent component
+
     dispatch('search', searchQuery.trim());
   }
 
-  // Fix the handleUserClick function to properly send participant IDs
   function handleUserClick(user: StandardUser) {
-    // Dispatch an event with the participants array format required by the API
+
     dispatch('createChat', { 
       type: 'individual',
       participants: [user.id]
     });
-    
-    // Only call onCancel if it exists
+
     if (typeof onCancel === 'function') {
       onCancel();
     }
@@ -392,32 +382,31 @@
     font-size: 14px;
   }
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     .modal-content {
       width: 95%;
       max-height: 90vh;
     }
-    
+
     .modal-header,
     .search-container {
       padding: 16px 20px;
     }
-    
+
     .user-item {
       padding: 12px 20px;
     }
-    
+
     .avatar {
       width: 40px;
       height: 40px;
       margin-right: 12px;
     }
-    
+
     .user-name {
       font-size: 15px;
     }
-    
+
     .username {
       font-size: 13px;
     }

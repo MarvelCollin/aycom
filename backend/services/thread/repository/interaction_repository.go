@@ -133,12 +133,11 @@ func (r *PostgresInteractionRepository) UnlikeThread(userID, threadID string) er
 		return tx.Error
 	}
 
-	// Use errChan to communicate panic recovery errors
 	errChan := make(chan error, 1)
 
 	defer func() {
 		if r := recover(); r != nil {
-			// Convert panic to error and send to channel
+
 			errStr := fmt.Sprintf("Recovered from panic in UnlikeThread: %v", r)
 			log.Printf(errStr)
 			tx.Rollback()
@@ -146,7 +145,6 @@ func (r *PostgresInteractionRepository) UnlikeThread(userID, threadID string) er
 		}
 	}()
 
-	// Use soft delete (set deleted_at timestamp) instead of hard delete
 	result := tx.Model(&model.Like{}).
 		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
 		Update("deleted_at", time.Now())
@@ -162,20 +160,17 @@ func (r *PostgresInteractionRepository) UnlikeThread(userID, threadID string) er
 		return err
 	}
 
-	// Check if there's a panic error in the channel
 	select {
 	case err := <-errChan:
 		return err
 	default:
-		// No panic occurred
+
 	}
 
 	log.Printf("Successfully processed unlike for thread %s by user %s (rows affected: %d)", threadID, userID, result.RowsAffected)
 	return nil
 }
 
-// CleanupSoftDeletedLikes permanently removes like records that were soft-deleted before the given cutoff time
-// This helps maintain database performance by periodically removing old soft-deleted records
 func (r *PostgresInteractionRepository) CleanupSoftDeletedLikes(cutoffTime time.Time) (int64, error) {
 	log.Printf("Running cleanup of soft-deleted likes older than %v", cutoffTime)
 
@@ -641,14 +636,11 @@ func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark)
 	return r.db.Create(bookmark).Error
 }
 
-// BatchCountThreadLikes counts likes for multiple threads in a single database query
-// This is more efficient than making separate queries for each thread
 func (r *PostgresInteractionRepository) BatchCountThreadLikes(threadIDs []string) (map[string]int64, error) {
 	if len(threadIDs) == 0 {
 		return map[string]int64{}, nil
 	}
 
-	// Convert string IDs to UUID
 	threadUUIDs := make([]uuid.UUID, 0, len(threadIDs))
 	for _, idStr := range threadIDs {
 		id, err := uuid.Parse(idStr)
@@ -664,14 +656,12 @@ func (r *PostgresInteractionRepository) BatchCountThreadLikes(threadIDs []string
 		return map[string]int64{}, nil
 	}
 
-	// Results will be stored here
 	type Result struct {
 		ThreadID uuid.UUID `gorm:"column:thread_id"`
 		Count    int64     `gorm:"column:count"`
 	}
 	var results []Result
 
-	// Execute a single query with GROUP BY to get counts for all threads
 	err := r.db.Model(&model.Like{}).
 		Select("thread_id, COUNT(*) as count").
 		Where("thread_id IN ? AND deleted_at IS NULL", threadUUIDs).
@@ -683,13 +673,11 @@ func (r *PostgresInteractionRepository) BatchCountThreadLikes(threadIDs []string
 		return nil, err
 	}
 
-	// Convert results to map for easy lookup
 	countMap := make(map[string]int64, len(results))
 	for _, result := range results {
 		countMap[result.ThreadID.String()] = result.Count
 	}
 
-	// Ensure all requested IDs are in the map (with count 0 if no likes)
 	for _, idStr := range threadIDs {
 		if _, exists := countMap[idStr]; !exists {
 			countMap[idStr] = 0
@@ -699,7 +687,6 @@ func (r *PostgresInteractionRepository) BatchCountThreadLikes(threadIDs []string
 	return countMap, nil
 }
 
-// BatchCheckThreadsLikedByUser checks if a user has liked multiple threads in a single query
 func (r *PostgresInteractionRepository) BatchCheckThreadsLikedByUser(userID string, threadIDs []string) (map[string]bool, error) {
 	if len(threadIDs) == 0 {
 		return map[string]bool{}, nil
@@ -710,7 +697,6 @@ func (r *PostgresInteractionRepository) BatchCheckThreadsLikedByUser(userID stri
 		return nil, errors.New("invalid UUID format for user ID")
 	}
 
-	// Convert string IDs to UUID
 	threadUUIDs := make([]uuid.UUID, 0, len(threadIDs))
 	for _, idStr := range threadIDs {
 		id, err := uuid.Parse(idStr)
@@ -726,13 +712,11 @@ func (r *PostgresInteractionRepository) BatchCheckThreadsLikedByUser(userID stri
 		return map[string]bool{}, nil
 	}
 
-	// Results will be stored here
 	type Result struct {
 		ThreadID uuid.UUID `gorm:"column:thread_id"`
 	}
 	var results []Result
 
-	// Query to find all threads liked by the user
 	err = r.db.Model(&model.Like{}).
 		Select("thread_id").
 		Where("user_id = ? AND thread_id IN ? AND deleted_at IS NULL", userUUID, threadUUIDs).
@@ -743,15 +727,12 @@ func (r *PostgresInteractionRepository) BatchCheckThreadsLikedByUser(userID stri
 		return nil, err
 	}
 
-	// Convert results to map for easy lookup
 	likedMap := make(map[string]bool, len(threadIDs))
 
-	// First mark all as not liked
 	for _, idStr := range threadIDs {
 		likedMap[idStr] = false
 	}
 
-	// Then mark the ones that are liked
 	for _, result := range results {
 		likedMap[result.ThreadID.String()] = true
 	}

@@ -1,11 +1,12 @@
 package repository
 
 import (
-	"aycom/backend/services/community/model"
 	"context"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
 )
 
 type CommunityJoinRequestRepository interface {
@@ -17,7 +18,6 @@ type CommunityJoinRequestRepository interface {
 	Update(request *model.CommunityJoinRequest) error
 	HasPendingJoinRequest(communityID, userID uuid.UUID) (bool, error)
 
-	// Transaction support
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	UpdateTx(tx *gorm.DB, request *model.CommunityJoinRequest) error
 }
@@ -72,7 +72,6 @@ func (r *GormCommunityJoinRequestRepository) HasPendingJoinRequest(communityID, 
 	return count > 0, err
 }
 
-// Transaction support
 func (r *GormCommunityJoinRequestRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	tx := r.db.WithContext(ctx).Begin()
 	return tx, tx.Error

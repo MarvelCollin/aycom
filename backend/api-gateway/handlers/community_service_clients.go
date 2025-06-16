@@ -7,14 +7,13 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"aycom/backend/api-gateway/config"
-
-	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type CommunityServiceClient interface {
@@ -125,7 +124,6 @@ func (c *communityCommunicationClient) SendMessage(chatID, userID, content strin
 
 	log.Printf("SendMessage: Preparing gRPC call to send message. ChatID=%s, UserID=%s", chatID, userID)
 
-	// Validate IDs before sending to gRPC
 	_, err := uuid.Parse(chatID)
 	if err != nil {
 		log.Printf("SendMessage: Invalid chat ID format: %s (%v)", chatID, err)
@@ -148,7 +146,6 @@ func (c *communityCommunicationClient) SendMessage(chatID, userID, content strin
 	if err != nil {
 		log.Printf("SendMessage: Error from gRPC service: %v", err)
 
-		// Add detailed error information
 		st, ok := status.FromError(err)
 		if ok {
 			log.Printf("SendMessage: gRPC status code: %s, message: %s", st.Code(), st.Message())
@@ -304,7 +301,6 @@ func (c *communityCommunicationClient) GetChats(userID string, limit, offset int
 			UpdatedAt:   protoChat.UpdatedAt.AsTime(),
 		}
 
-		// Get participants for this chat
 		participantResp, err := c.grpcClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
 			ChatId: protoChat.Id,
 		})
@@ -317,7 +313,6 @@ func (c *communityCommunicationClient) GetChats(userID string, limit, offset int
 			chat.Participants = participantIDs
 		}
 
-		// Get last message if available
 		messagesResp, err := c.grpcClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
 			ChatId: protoChat.Id,
 			Limit:  1,
@@ -349,17 +344,14 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		return nil, fmt.Errorf("community service client not initialized")
 	}
 
-	// Validate inputs
 	if len(participantIDs) == 0 {
 		return nil, fmt.Errorf("at least one participant is required")
 	}
 
-	// For group chats, name is required
 	if isGroup && (name == "" || len(name) == 0) {
 		return nil, fmt.Errorf("name is required for group chats")
 	}
 
-	// Make sure the creator is included in participants
 	creatorIncluded := false
 	for _, id := range participantIDs {
 		if id == createdBy {
@@ -368,12 +360,10 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		}
 	}
 
-	// If creator is not in the participants list, add them
 	if !creatorIncluded {
 		participantIDs = append(participantIDs, createdBy)
 	}
 
-	// Log the request details
 	log.Printf("Creating chat: isGroup=%v, name=%s, participants=%v, createdBy=%s",
 		isGroup, name, participantIDs, createdBy)
 

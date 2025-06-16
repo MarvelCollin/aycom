@@ -3,9 +3,10 @@ package db
 import (
 	"log"
 
+	"gorm.io/gorm"
+
 	"aycom/backend/services/thread/model"
 
-	"gorm.io/gorm"
 )
 
 func RunMigrations(db *gorm.DB) error {

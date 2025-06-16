@@ -18,7 +18,6 @@ type CommunityMemberRepository interface {
 	Update(member *model.CommunityMember) error
 	CountByCommunity(communityID uuid.UUID) (int64, error)
 
-	// Transaction support
 	AddTx(tx *gorm.DB, member *model.CommunityMember) error
 	UpdateTx(tx *gorm.DB, member *model.CommunityMember) error
 }
@@ -41,7 +40,7 @@ func (r *GormCommunityMemberRepository) IsMember(communityID, userID uuid.UUID) 
 }
 
 func (r *GormCommunityMemberRepository) Add(member *model.CommunityMember) error {
-	// Ensure timestamps are set
+
 	member.CreatedAt = time.Now()
 	member.UpdatedAt = time.Now()
 	return r.db.Create(member).Error
@@ -85,9 +84,8 @@ func (r *GormCommunityMemberRepository) CountByCommunity(communityID uuid.UUID) 
 	return count, err
 }
 
-// Transaction support
 func (r *GormCommunityMemberRepository) AddTx(tx *gorm.DB, member *model.CommunityMember) error {
-	// Ensure timestamps are set
+
 	member.CreatedAt = time.Now()
 	member.UpdatedAt = time.Now()
 	return tx.Create(member).Error

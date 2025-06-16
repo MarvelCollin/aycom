@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"aycom/backend/services/user/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/user/model"
 )
 
 type UserRepository interface {
@@ -222,26 +222,23 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 
 	baseQuery := r.db.Model(&model.User{})
 
-	// Only apply text search if query is not empty and not just whitespace
 	if query != "" && strings.TrimSpace(query) != "" {
 		sanitizedQuery := strings.ReplaceAll(strings.TrimSpace(query), "%", "\\%")
 		sanitizedQuery = strings.ReplaceAll(sanitizedQuery, "_", "\\_")
 
-		// Don't search if the sanitized query is just a single space character (workaround for empty queries)
 		if sanitizedQuery != " " {
 			baseQuery = baseQuery.Where("username ILIKE ? OR name ILIKE ? OR email ILIKE ?",
 				"%"+sanitizedQuery+"%", "%"+sanitizedQuery+"%", "%"+sanitizedQuery+"%")
 		}
 	}
 
-	// Apply filter always, even with empty query
 	switch filter {
 	case "verified":
 		baseQuery = baseQuery.Where("is_verified = ?", true)
 	case "admin":
 		baseQuery = baseQuery.Where("is_admin = ?", true)
 	case "all":
-		// No additional filter needed
+
 	}
 
 	err := baseQuery.Count(&total).Error

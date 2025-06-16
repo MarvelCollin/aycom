@@ -449,30 +449,24 @@ func GoogleLogin(c *gin.Context) {
 	if getUserErr != nil || userResp == nil || userResp.User == nil {
 		log.Printf("GoogleLogin: User with email %s not found, creating new user", tokenInfo.Email)
 
-		// Generate a valid username from the name
 		newUsername := utils.GenerateUsername(tokenInfo.Name)
 
-		// Generate a secure password that meets validation requirements
 		randomPassword := utils.GenerateSecureRandomPassword(16)
-		// Ensure the password has at least one number
+
 		if !strings.ContainsAny(randomPassword, "0123456789") {
 			randomPassword = randomPassword[:len(randomPassword)-1] + "9"
 		}
 
-		// Use a date format that matches what the user service expects (MM-DD-YYYY)
-		// The user service expects MM-DD-YYYY format based on ParseCustomDateFormat
 		now := time.Now()
-		// Set to 18 years ago to ensure age validation passes
+
 		birthYear := now.Year() - 18
-		// Format as MM-DD-YYYY (note: month is 0-indexed in ParseCustomDateFormat)
+
 		currentDate := fmt.Sprintf("%02d-%02d-%04d", int(now.Month())-1, now.Day(), birthYear)
 
-		// Set gender to a valid value
-		gender := "male" // Default to male for new Google accounts
+		gender := "male" 
 
-		// Add security question and answer for new Google accounts
 		securityQuestion := "What is your favorite color?"
-		securityAnswer := "blue" // Default answer
+		securityAnswer := "blue" 
 
 		log.Printf("GoogleLogin: Creating new user with username: %s, date: %s, gender: %s",
 			newUsername, currentDate, gender)
@@ -503,7 +497,6 @@ func GoogleLogin(c *gin.Context) {
 				time.Sleep(time.Duration(i) * 500 * time.Millisecond)
 			}
 
-			// Log the user data we're sending
 			log.Printf("GoogleLogin: Attempting to create user with data: email=%s, username=%s, date_of_birth=%s, gender=%s",
 				user.Email, user.Username, user.DateOfBirth, user.Gender)
 
@@ -515,11 +508,10 @@ func GoogleLogin(c *gin.Context) {
 
 			log.Printf("GoogleLogin: Error creating user (attempt %d): %v", i+1, createErr)
 
-			// If there's a validation error with the date, try to fix it
 			if strings.Contains(createErr.Error(), "parsing time") || strings.Contains(createErr.Error(), "date") {
 				log.Printf("GoogleLogin: Date format error detected, trying to fix date format")
 				now := time.Now()
-				// Try different date format
+
 				user.DateOfBirth = fmt.Sprintf("%d-%02d-%02d", now.Year()-18, now.Month(), now.Day())
 				log.Printf("GoogleLogin: Updated date of birth to: %s", user.DateOfBirth)
 			}

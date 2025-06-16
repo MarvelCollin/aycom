@@ -31,7 +31,6 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Initialize repositories
 	communityRepo := repository.NewCommunityRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
 	memberRepo := repository.NewCommunityMemberRepository(db)
@@ -42,7 +41,6 @@ func main() {
 	messageRepo := repository.NewMessageRepository(db)
 	deletedChatRepo := repository.NewDeletedChatRepository(db)
 
-	// Initialize services
 	communityService := service.NewCommunityService(
 		communityRepo,
 		categoryRepo,
@@ -58,7 +56,6 @@ func main() {
 		deletedChatRepo,
 	)
 
-	// Initialize gRPC handler
 	communityHandler := api.NewCommunityHandler(
 		communityService,
 		chatService,
@@ -67,10 +64,8 @@ func main() {
 		ruleRepo,
 	)
 
-	// Get port from environment variable or use default
 	port := getEnv("COMMUNITY_SERVICE_PORT", "9093")
 
-	// Start gRPC server
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
@@ -86,14 +81,13 @@ func main() {
 }
 
 func initDatabase() (*gorm.DB, error) {
-	// Get database connection parameters from environment variables
+
 	dbHost := getEnv("DATABASE_HOST", "community_db")
 	dbPort := getEnv("DATABASE_PORT", "5432")
 	dbUser := getEnv("DATABASE_USER", "kolin")
 	dbPassword := getEnv("DATABASE_PASSWORD", "kolin")
 	dbName := getEnv("DATABASE_NAME", "community_db")
 
-	// Format the database connection string
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
@@ -104,7 +98,6 @@ func initDatabase() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Auto-migrate models
 	log.Println("Community service database migrations started")
 	err = db.AutoMigrate(
 		&model.Community{},
@@ -123,7 +116,6 @@ func initDatabase() (*gorm.DB, error) {
 	}
 	log.Println("Community service database migrations completed successfully")
 
-	// Seed the database with sample data if needed
 	if err := seedDatabase(db); err != nil {
 		log.Printf("Warning: Failed to seed database: %v", err)
 	} else {
@@ -133,9 +125,8 @@ func initDatabase() (*gorm.DB, error) {
 	return db, nil
 }
 
-// Seed the database with sample data
 func seedDatabase(db *gorm.DB) error {
-	// Check if we already have communities
+
 	var communityCount int64
 	if err := db.Model(&model.Community{}).Count(&communityCount).Error; err != nil {
 		return fmt.Errorf("failed to count communities: %w", err)
@@ -146,13 +137,11 @@ func seedDatabase(db *gorm.DB) error {
 		return nil
 	}
 
-	// Use these user IDs for seeding
 	userIDs := []uuid.UUID{
-		uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"), // Current user ID from logs
-		uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"), // Another ID seen in logs
+		uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"), 
+		uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"), 
 	}
 
-	// Create communities
 	communities := []model.Community{
 		{
 			CommunityID: uuid.New(),
@@ -195,10 +184,8 @@ func seedDatabase(db *gorm.DB) error {
 
 	log.Printf("Created %d communities", len(communities))
 
-	// Add community members
 	members := []model.CommunityMember{}
 
-	// Add creators as admins
 	for _, community := range communities {
 		members = append(members, model.CommunityMember{
 			CommunityID: community.CommunityID,
@@ -209,7 +196,6 @@ func seedDatabase(db *gorm.DB) error {
 		})
 	}
 
-	// Add second user as member to first community and moderator to second
 	if len(communities) >= 2 && len(userIDs) >= 2 {
 		members = append(members, model.CommunityMember{
 			CommunityID: communities[0].CommunityID,
@@ -234,7 +220,6 @@ func seedDatabase(db *gorm.DB) error {
 
 	log.Printf("Created %d community members", len(members))
 
-	// Create a pending join request for the third community
 	if len(communities) >= 3 && len(userIDs) >= 2 {
 		joinRequest := model.CommunityJoinRequest{
 			RequestID:   uuid.New(),

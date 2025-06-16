@@ -6,13 +6,11 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { chatMessageStore } from '../../stores/chatMessageStore';
   import type { MessageType } from '../../stores/websocketStore';
-  
+
   const logger = createLoggerWithPrefix('ChatContainer');
-  
-  // Props
+
   export let chatId: string;
-  
-  // Define our own simplified types
+
   type BasicUser = {
     id?: string;
     user_id?: string;
@@ -36,8 +34,7 @@
     is_edited?: boolean;
     user?: BasicUser;
   };
-  
-  // State
+
   let participants: BasicUser[] = [];
   let userId = '';
   let isLoading = true;
@@ -45,16 +42,14 @@
   let messages: ChatMessage[] = [];
   let isParticipantError = false;
   let isJoiningChat = false;
-  
-  // Function to handle joining a chat
+
   async function handleJoinChat() {
     try {
       isJoiningChat = true;
       error = null;
-      
+
       await joinChat(chatId);
-      
-      // Reload the page to refresh data after joining
+
       window.location.reload();
     } catch (err: any) {
       logger.error('Failed to join chat:', err);
@@ -62,20 +57,19 @@
       isJoiningChat = false;
     }
   }
-  
-  // Load chat participants and message history when component mounts
+
   onMount(async () => {
-    // Get user ID from auth token
+
     const token = getAuthToken();
     if (token) {
       try {
-        // Extract user ID from JWT token
+
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
           return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-        
+
         const tokenData = JSON.parse(jsonPayload);
         userId = tokenData.user_id || tokenData.sub || '';
         console.log('[ChatContainer] Extracted user ID from token:', userId);
@@ -90,12 +84,11 @@
     try {
       isLoading = true;
       console.log('[ChatContainer] Loading chat data for chat ID:', chatId);
-      
-      // Fetch participants first to get user data for messages
+
       try {
         const participantsResponse = await listChatParticipants(chatId);
         console.log('[ChatContainer] Participants response:', participantsResponse);
-        
+
         if (participantsResponse && participantsResponse.participants) {
           participants = participantsResponse.participants.map((p: any) => ({
             id: p.user_id || p.id,
@@ -105,7 +98,7 @@
           }));
           console.log('[ChatContainer] Processed participants:', participants);
         } else if (participantsResponse && Array.isArray(participantsResponse)) {
-          // Handle array response format
+
           participants = participantsResponse.map((p: any) => ({
             id: p.user_id || p.id,
             username: p.username || '',
@@ -115,61 +108,55 @@
         }
       } catch (participantsError: any) {
         console.error('[ChatContainer] Failed to load participants:', participantsError);
-        
-        // Check if this is a "not a participant" error
+
         if (participantsError.message && participantsError.message.includes('not a participant in this chat')) {
           isParticipantError = true;
           error = 'You are not a participant in this chat. Please join the chat first.';
         }
-        // Continue even if participants fail to load
+
       }
-      
-      // Only fetch messages if we're not already showing a participant error
+
       if (!isParticipantError) {
-        // Fetch messages
+
         try {
           const messagesResponse = await listMessages(chatId);
           console.log('[ChatContainer] Messages response:', messagesResponse);
-          
+
           if (messagesResponse && messagesResponse.messages) {
             messages = messagesResponse.messages;
           } else if (messagesResponse && Array.isArray(messagesResponse)) {
-            // Handle case where response might be direct array
+
             messages = messagesResponse;
           } else {
             console.warn('[ChatContainer] Invalid or empty messages response');
-            messages = []; // Ensure we have an empty array at minimum
+            messages = []; 
           }
         } catch (messagesError: any) {
           console.error('[ChatContainer] Failed to load messages:', messagesError);
-          
-          // Check if this is a "not a participant" error
+
           if (messagesError.message && messagesError.message.includes('not a participant in this chat')) {
             isParticipantError = true;
             error = 'You are not a participant in this chat. Please join the chat first.';
           } else {
             error = messagesError instanceof Error ? messagesError.message : 'Failed to load messages';
           }
-          
-          messages = []; // Ensure we have an empty array at minimum
+
+          messages = []; 
         }
       }
-      
-      // Process messages for chat store if we have any
+
       if (!isParticipantError && messages.length > 0) {
         messages.forEach(message => {
-          // Use existing user data if available, otherwise find from participants
+
           let sender = message.user;
           const senderId = message.user_id || message.sender_id || '';
-          
+
           if (!sender && participants.length > 0) {
             sender = participants.find(p => p.id === senderId || p.user_id === senderId);
           }
-          
-          // Ensure we have message_id (use either id or message_id from backend)
+
           const messageId = message.message_id || message.id || '';
-          
-          // Convert timestamp to a Date object if it's not already
+
           let messageTimestamp;
           if (typeof message.timestamp === 'number') {
             messageTimestamp = new Date(message.timestamp * 1000);
@@ -178,7 +165,7 @@
           } else {
             messageTimestamp = new Date();
           }
-          
+
           const storeMessage = {
             type: 'text' as MessageType,
             content: message.content,
@@ -196,32 +183,29 @@
               profile_picture_url: sender?.avatar_url || sender?.profile_picture_url
             }
           };
-          
+
           chatMessageStore.addMessage(storeMessage);
         });
       }
-      
-      // Connect to real-time updates if we're a participant
+
       if (!isParticipantError) {
         chatMessageStore.connectToChat(chatId);
       }
-      
+
       isLoading = false;
     } catch (err: unknown) {
       logger.error('Error loading chat data:', err);
       console.error('[ChatContainer] Error details:', err instanceof Error ? err.message : err);
-      
-      // Check if this is a "not a participant" error
+
       if (err instanceof Error && err.message.includes('not a participant in this chat')) {
         isParticipantError = true;
         error = 'You are not a participant in this chat. Please join the chat first.';
       } else {
         error = err instanceof Error ? err.message : 'Failed to load chat';
       }
-      
+
       isLoading = false;
-      
-      // Check if this is an auth error
+
       if (err instanceof Error && (
           err.message.includes('authentication') || 
           err.message.includes('UNAUTHORIZED')
@@ -231,8 +215,7 @@
       }
     }
   });
-  
-  // Clean up when the component is destroyed
+
   onDestroy(() => {
     if (chatId && !isParticipantError) {
       chatMessageStore.disconnectFromChat(chatId);
@@ -293,20 +276,20 @@
     display: flex;
     flex-direction: column;
   }
-  
+
   .chat-header {
     padding: 12px 16px;
     border-bottom: 1px solid #dee2e6;
     background-color: #f8f9fa;
   }
-  
+
   .participant-info h3 {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 500;
     color: #333;
   }
-  
+
   .loading-state,
   .error-state {
     display: flex;
@@ -317,11 +300,11 @@
     text-align: center;
     padding: 20px;
   }
-  
+
   .error-state {
     color: #dc3545;
   }
-  
+
   .error-state button {
     margin-top: 12px;
     padding: 8px 16px;
@@ -331,15 +314,15 @@
     border-radius: 4px;
     cursor: pointer;
   }
-  
+
   .error-state button:disabled {
     background-color: #6c757d;
     cursor: not-allowed;
   }
-  
+
   .action-buttons {
     display: flex;
     gap: 10px;
     margin-top: 12px;
   }
-</style> 
+</style>

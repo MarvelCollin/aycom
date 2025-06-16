@@ -6,7 +6,6 @@
   import UserMinusIcon from 'svelte-feather-icons/src/icons/UserMinusIcon.svelte';
   import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
 
-  // Types
   interface Member {
     id: string;
     user_id: string;
@@ -18,13 +17,11 @@
     requested_at?: Date | string;
   }
 
-  // Props
   export let members: Member[] = [];
   export let pendingMembers: Member[] = [];
   export let canManageCommunity: boolean = false;
-  export let currentUserId: string = ''; // Add current user ID to prevent self-kick
+  export let currentUserId: string = ''; 
 
-  // Event dispatcher
   const dispatch = createEventDispatcher();
 
   function handleApproveJoinRequest(requestId: string) {
@@ -34,21 +31,19 @@
   function handleRejectJoinRequest(requestId: string) {
     dispatch('rejectJoinRequest', requestId);
   }
-  
+
   function handleKickMember(userId: string, username: string) {
     if (confirm(`Are you sure you want to remove ${username} from this community?`)) {
       dispatch('kickMember', userId);
     }
   }
-  
-  // Function to check if current user can kick another member
+
   function canKickMember(member: Member): boolean {
     if (!canManageCommunity) return false;
-    if (member.user_id === currentUserId) return false; // Can't kick yourself
-    
-    // Admins and owners cannot be kicked by regular moderators
+    if (member.user_id === currentUserId) return false; 
+
     if ((member.role === 'admin' || member.role === 'owner')) return false;
-    
+
     return true;
   }
 </script>
@@ -69,7 +64,7 @@
             }}
             showFollowButton={false}
           />
-          
+
           {#if canManageCommunity}
             <div class="member-actions">
               {#if canKickMember(member)}
@@ -100,7 +95,7 @@
       <p>No members found</p>
     </div>
   {/if}
-  
+
   {#if pendingMembers.length > 0 && canManageCommunity}
     <div class="pending-members-section">
       <h2 class="section-title">Pending Join Requests ({pendingMembers.length})</h2>
@@ -123,11 +118,11 @@
                 <span class="user-role-badge pending">Pending</span>
               </div>
             </div>
-            
+
             <div class="pending-member-info">
               <p><strong>Requested:</strong> {member.requested_at ? new Date(member.requested_at).toLocaleDateString() : 'Unknown'}</p>
             </div>
-            
+
             <div class="pending-member-actions">
               <Button variant="success" size="small" on:click={() => handleApproveJoinRequest(member.id)}>
                 Approve
@@ -157,13 +152,13 @@
     padding-bottom: var(--space-2);
     border-bottom: 1px solid var(--border-color);
   }
-  
+
   .members-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
   }
-  
+
   .member-card {
     display: flex;
     align-items: center;
@@ -174,15 +169,15 @@
     background-color: var(--bg-secondary);
     transition: background-color 0.2s;
   }
-  
+
   .member-card:hover {
     background-color: var(--bg-hover);
   }
-  
+
   .member-actions {
     margin-left: var(--space-2);
   }
-  
+
   .protected-badge {
     display: flex;
     align-items: center;
