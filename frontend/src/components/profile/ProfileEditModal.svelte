@@ -13,13 +13,11 @@
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  // Reactive declarations
   $: isDarkMode = $theme === "dark";
 
   export let profile: IUserProfile | null = null;
   export let isOpen: boolean = false;
 
-  // Local form data that we can safely bind to
   let formData = {
     name: "",
     bio: "",
@@ -35,7 +33,6 @@
   let isUploading = false;
   let errorMessage = "";
 
-  // Initialize form data when profile changes
   $: if (profile) {
     formData = {
       name: profile.name || "",
@@ -45,7 +42,6 @@
       gender: profile.gender || ""
     };
 
-    // Also update preview images when profile changes
     profilePicturePreview = profile.profile_picture_url || "";
     bannerPreview = profile.banner_url || "";
 
@@ -56,7 +52,6 @@
 
   onMount(() => {
     if (profile) {
-      // Ensure we initialize the form data on mount as well
       formData = {
         name: profile.name || "",
         bio: profile.bio || "",
@@ -85,7 +80,6 @@
     if (input.files && input.files.length > 0) {
       profilePictureFile = input.files[0];
 
-      // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         profilePicturePreview = e.target?.result as string;
@@ -99,7 +93,6 @@
     if (input.files && input.files.length > 0) {
       bannerFile = input.files[0];
 
-      // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         bannerPreview = e.target?.result as string;
@@ -119,15 +112,12 @@
   }
 
   async function handleSave() {
-    // If we have form changes, update those as well
     if (profile) {
-      // Update profile with form data
       if (formData.name !== profile.name ||
           formData.bio !== profile.bio ||
           formData.email !== profile.email ||
           formData.date_of_birth !== profile.date_of_birth ||
           formData.gender !== profile.gender) {
-        // Dispatch event to parent to handle the profile update
         dispatch("updateProfile", formData);
       }
     }
@@ -141,7 +131,6 @@
     errorMessage = "";
 
     try {
-      // Upload profile picture if selected
       if (profilePictureFile) {
         console.log("Uploading profile picture:", profilePictureFile.name);
         const profilePictureUrl = await uploadFile(profilePictureFile);
@@ -154,7 +143,6 @@
         }
       }
 
-      // Upload banner if selected
       if (bannerFile) {
         console.log("Uploading banner:", bannerFile.name);
         const bannerUrl = await uploadFile(bannerFile);
