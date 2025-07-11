@@ -47,7 +47,6 @@ export interface ICustomWindow extends Window {
   handleGoogleCredentialResponse?: (response: IGoogleCredentialResponse) => void;
 }
 
-// Using IUserRegistrationRequest from IUser.d.ts instead
 export type IUserRegistration = IUserRegistrationRequest;
 
 export interface IDateOfBirth {
@@ -79,12 +78,7 @@ export interface ILoginCredentials {
   password: string;
 }
 
-// Unify with IUserRegistrationRequest
 export type IRegisterCredentials = Pick<IUserRegistrationRequest, "username" | "email" | "password" | "confirm_password">;
-
-/**
- * Auth endpoint response interfaces
- */
 
 export interface IAuthResponse {
   success: boolean;

@@ -9,18 +9,15 @@
 
   const logger = createLoggerWithPrefix("CreateCommunity");
 
-  // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
 
-  // Reactive declarations
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === "dark";
   $: sidebarUsername = authState?.user_id ? `User_${authState.user_id.substring(0, 4)}` : "";
   $: sidebarDisplayName = authState?.user_id ? `User ${authState.user_id.substring(0, 4)}` : "";
-  $: sidebarAvatar = "https://secure.gravatar.com/avatar/0?d=mp"; // Default avatar with proper image URL
+  $: sidebarAvatar = "https://secure.gravatar.com/avatar/0?d=mp"; 
 
-  // Available categories for selection
   const availableCategories = [
     "Gaming", "Sports", "Food", "Technology", "Art", "Music",
     "Movies", "Books", "Fitness", "Travel", "Fashion", "Education",
@@ -28,7 +25,6 @@
     "Lifestyle", "Entertainment", "Pets", "Environment", "DIY", "Finance"
   ];
 
-  // Form data
   let communityName = "";
   let description = "";
   let icon: File | null = null;
@@ -38,12 +34,10 @@
   let bannerPreview: string | null = null;
   let rules = "";
 
-  // Form state
   let isSubmitting = false;
   let isSuccess = false;
   let errors: Record<string, string> = {};
 
-  // Authentication check
   function checkAuth() {
     if (!authState.is_authenticated) {
       toastStore.showToast("You need to log in to create a community", "warning");
@@ -53,13 +47,11 @@
     return true;
   }
 
-  // Handle icon file selection
   function handleIconChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       icon = input.files[0];
 
-      // Create a preview
       const reader = new FileReader();
       reader.onload = e => {
         iconPreview = e.target?.result as string;
@@ -68,13 +60,11 @@
     }
   }
 
-  // Handle banner file selection
   function handleBannerChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       banner = input.files[0];
 
-      // Create a preview
       const reader = new FileReader();
       reader.onload = e => {
         bannerPreview = e.target?.result as string;
@@ -83,12 +73,11 @@
     }
   }
 
-  // Toggle category selection
   function toggleCategory(category: string) {
     if (selectedCategories.includes(category)) {
       selectedCategories = selectedCategories.filter(c => c !== category);
     } else {
-      if (selectedCategories.length < 5) { // Limit to 5 categories
+      if (selectedCategories.length < 5) { 
         selectedCategories = [...selectedCategories, category];
       } else {
         toastStore.showToast("You can select up to 5 categories", "warning");
@@ -96,11 +85,9 @@
     }
   }
 
-  // Validate form
   function validateForm(): boolean {
     errors = {};
 
-    // Community name validation
     if (!communityName.trim()) {
       errors.communityName = "Community name is required";
     } else if (communityName.length < 3) {
@@ -109,7 +96,6 @@
       errors.communityName = "Community name cannot exceed 50 characters";
     }
 
-    // Description validation
     if (!description.trim()) {
       errors.description = "Description is required";
     } else if (description.length < 30) {
@@ -118,22 +104,18 @@
       errors.description = "Description cannot exceed 500 characters";
     }
 
-    // Icon validation
     if (!icon) {
       errors.icon = "Community icon is required";
     }
 
-    // Categories validation
     if (selectedCategories.length === 0) {
       errors.categories = "At least one category is required";
     }
 
-    // Banner validation
     if (!banner) {
       errors.banner = "Community banner is required";
     }
 
-    // Rules validation
     if (!rules.trim()) {
       errors.rules = "Community rules are required";
     } else if (rules.length < 50) {
@@ -143,10 +125,9 @@
     return Object.keys(errors).length === 0;
   }
 
-  // Submit form
   async function handleSubmit() {
     if (!validateForm()) {
-      // Scroll to first error
+
       const firstErrorField = Object.keys(errors)[0];
       const element = document.getElementById(firstErrorField);
       if (element) {
@@ -158,21 +139,7 @@
     isSubmitting = true;
 
     try {
-      // In a real implementation, this would be an API call to create a community
-      // For example:
-      // const formData = new FormData();
-      // formData.append('name', communityName);
-      // formData.append('description', description);
-      // formData.append('icon', icon);
-      // formData.append('categories', JSON.stringify(selectedCategories));
-      // formData.append('banner', banner);
-      // formData.append('rules', rules);
-      // const response = await fetch('/api/communities', {
-      //   method: 'POST',
-      //   body: formData
-      // });
 
-      // Simulate API response with a delay
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       logger.debug("Community creation request submitted", {
@@ -180,7 +147,6 @@
         categories: selectedCategories
       });
 
-      // Success
       isSuccess = true;
       toastStore.showToast("Community creation request submitted for approval", "success");
 
@@ -192,7 +158,6 @@
     }
   }
 
-  // Navigate back to communities
   function navigateToCommunities() {
     window.location.href = "/communities";
   }
@@ -439,7 +404,7 @@
 </MainLayout>
 
 <style>
-  /* Prevent text overflow */
+
   textarea {
     resize: vertical;
   }

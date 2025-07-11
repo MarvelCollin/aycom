@@ -12,23 +12,20 @@
   export let showBackButton = false;
   export let onBack = () => {};
 
-  // Get theme store
   const { theme } = useTheme();
 
-  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === "dark";
 
   onMount(() => {
-    // Apply theme class to document when component mounts
+
     document.documentElement.classList.add(isDarkMode ? "dark-theme" : "light-theme");
 
     return () => {
-      // Cleanup when component is destroyed
+
       document.documentElement.classList.remove(isDarkMode ? "dark-theme" : "light-theme");
     };
   });
 
-  // Update theme class when isDarkMode changes
   $: {
     if (typeof document !== "undefined") {
       if (isDarkMode) {
@@ -136,7 +133,6 @@
     background-color: var(--bg-hover);
   }
 
-  /* Global styles for auth components */
   :global(.auth-btn) {
     width: 100%;
     padding: var(--space-3);

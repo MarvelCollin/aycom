@@ -2,14 +2,12 @@
   import { useTheme } from "../../hooks/useTheme";
   import { onMount } from "svelte";
 
-  // Get the theme store and toggleTheme function from our hook
   const { theme, toggleTheme } = useTheme();
 
-  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === "dark";
 
   onMount(() => {
-    // Apply theme class to document when component mounts
+
     document.documentElement.classList.add(isDarkMode ? "dark" : "light");
   });
 </script>
@@ -37,7 +35,7 @@
 </div>
 
 <style>
-  /* Additional theme-related styles */
+
   .theme-container {
     transition: background-color 0.3s ease, color 0.3s ease;
   }

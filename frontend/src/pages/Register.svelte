@@ -35,44 +35,43 @@
 
   $: isDarkMode = $theme === "dark";
 
-  // New state for Google auth profile completion
   let showProfileCompletion = false;
   let missingProfileFields: string[] = [];
 
   function validateNameAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateUsernameAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateEmailAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validatePasswordAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateConfirmPasswordAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateGenderAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateDateOfBirthAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateSecurityQuestionAndUpdate() {
-    // pindah ke backend 
+
   }
 
   function validateSecurityAnswerAndUpdate() {
-    // pindah ke backend 
+
   }
 
   let recaptchaToken: string | null = null;
@@ -312,9 +311,8 @@
     cleanupTimers();
   });
 
-  // Add this function to extract field errors from error message strings
   function parseErrorMessageForFieldErrors(errorMessage) {
-    // Common field mappings
+
     const fieldMappings = {
       "Name": "name",
       "Username": "username",
@@ -328,7 +326,7 @@
     };
 
     try {
-      // Extract field errors from message format: "Key: 'Field' Error:message"
+
       const errorRegex = /Key:\s*'([^']+)'\s*Error:([^,;]+)/g;
       let match;
 
@@ -336,10 +334,8 @@
         const fieldName = match[1];
         const errorDesc = match[2].trim();
 
-        // Map the field name to our camelCase version
         const formField = fieldMappings[fieldName] || fieldName.toLowerCase();
 
-        // Set the field error
         if (formField === "password") {
           setFieldError(formField, [errorDesc]);
         } else {

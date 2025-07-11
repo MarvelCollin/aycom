@@ -164,7 +164,6 @@
   let showNewCategoryModal = false;
   let categoryType: "thread" | "community" = "thread";
 
-  // Variable declarations for pagination
   let isLoadingCommunityRequests = false;
   let isLoadingPremiumRequests = false;
   let isLoadingReportRequests = false;
@@ -183,7 +182,6 @@
 
   let reportStatusFilter = "pending";
 
-  // Add a new function to sync community requests
   let isSyncingCommunities = false;
 
   async function syncCommunityRequests() {
@@ -200,10 +198,8 @@
         const message = `Sync completed: Found ${syncData.total_pending_communities} pending communities`;
         toastStore.showToast(message, "success");
 
-        // Reload community requests to show the newly synced ones
         await loadCommunityRequests();
 
-        // Debug the community requests after loading
         logger.info("After sync, community requests:", communityRequests);
       } else {
         logger.error("Failed to sync community requests:", result);
@@ -228,13 +224,12 @@
       if (isAdmin) {
         await loadDashboardData();
 
-        // Also load categories on initial load for quicker access
         if (activeTab !== "categories") {
           logger.info("Pre-loading categories data for better user experience");
           await loadCategories();
         }
       } else {
-        // Handle non-admin users
+
         logger.warn("User is not an admin");
         window.location.href = "/feed";
       }
@@ -243,7 +238,7 @@
       isLoading = false;
       toastStore.showToast("Error loading admin dashboard. Please try again later.", "error");
     } finally {
-      // Ensure loading state is cleared even if there's an error
+
       isLoading = false;
     }
   });
@@ -252,20 +247,17 @@
     try {
       logger.info("Checking admin status with authState:", authState);
 
-      // First check if the user is already marked as admin in the auth state
       if (authState && authState.is_admin === true) {
         logger.info("User is admin according to auth state");
         return true;
       }
 
-      // If not, make an API call to check admin status
       logger.info("Checking admin status via API call");
       const isAdmin = await checkAdminStatus();
 
       if (isAdmin) {
         logger.info("API confirmed user is admin");
 
-        // Update the auth state in localStorage
         try {
           const authData = localStorage.getItem("auth");
           if (authData) {
@@ -368,15 +360,13 @@
         totalCount = response.totalCount || 0;
         logger.info(`Loaded ${users.length} users (total: ${totalCount})`);
 
-        // Ensure is_banned property is correctly processed
         users = users.map(user => {
-          // Make sure is_banned is a boolean and handle different property names
+
           const isBanned =
             user.is_banned === true ||
             String(user.is_banned) === "true" ||
             Number(user.is_banned) === 1;
 
-          // Create a consistent property
           return {
             ...user,
             is_banned: isBanned
@@ -410,7 +400,7 @@
       logger.info("Community requests API response:", result);
 
       if (result && result.success) {
-        // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
+
         if (result.requests && Array.isArray(result.requests)) {
           logger.info(`Found ${result.requests.length} community requests in 'requests' field`);
           communityRequests = result.requests.map(request => standardizeCommunityRequest(request));
@@ -448,7 +438,7 @@
       const result = await adminAPI.getPremiumRequests(premiumRequestsPage, 10, requestStatusFilter === "all" ? undefined : requestStatusFilter);
 
       if (result && result.success) {
-        // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
+
         if (result.requests && Array.isArray(result.requests)) {
           premiumRequests = result.requests.map(request => standardizePremiumRequest(request));
         } else if (result.data && Array.isArray(result.data)) {
@@ -475,7 +465,7 @@
       const result = await adminAPI.getReportRequests(reportRequestsPage, 10, reportStatusFilter === "all" ? undefined : reportStatusFilter);
 
       if (result && result.success) {
-        // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
+
         if (result.requests && Array.isArray(result.requests)) {
           reportRequests = result.requests.map(request => standardizeReportRequest(request));
         } else if (result.data && Array.isArray(result.data)) {
@@ -518,14 +508,12 @@
     isLoadingCategories = true;
 
     try {
-      // Use Promise.allSettled to load both category types in parallel
-      // This way if one fails, we still get the other
+
       const [threadResult, communityResult] = await Promise.allSettled([
         adminAPI.getThreadCategories(categoriesPage, 50),
         adminAPI.getCommunityCategories(categoriesPage, 50)
       ]);
 
-      // Process thread categories result
       if (threadResult.status === "fulfilled" && threadResult.value && threadResult.value.success) {
         threadCategories = threadResult.value.data || [];
         logger.info(`Loaded ${threadCategories.length} thread categories`);
@@ -535,7 +523,6 @@
         threadCategories = [];
       }
 
-      // Process community categories result
       if (communityResult.status === "fulfilled" && communityResult.value && communityResult.value.success) {
         communityCategories = communityResult.value.data || [];
         logger.info(`Loaded ${communityCategories.length} community categories`);
@@ -607,10 +594,8 @@
     activeTab = event.detail;
     currentPage = 1;
 
-    // Log the tab change for debugging
     logger.info(`Tab changed to: ${activeTab}`);
 
-    // Load the appropriate data for the tab
     loadDashboardData();
   }
 
@@ -633,20 +618,16 @@
       const ban = !isBanned;
       logger.info(`Processing ${ban ? "ban" : "unban"} for user ${userId} with current ban status=${isBanned}`);
 
-      // Show loading state
       const actionText = ban ? "Banning" : "Unbanning";
       toastStore.showToast(`${actionText} user...`, "info");
 
-      // Call the API with improved logging
       const response = await adminAPI.banUser(userId, ban, ban ? "Admin ban action" : "Admin unban action");
       logger.info("Ban/unban API response:", response);
 
-      // Handle the response
       if (response.success) {
         const actionCompleted = ban ? "banned" : "unbanned";
         toastStore.showToast(`User ${actionCompleted} successfully`, "success");
-        
-        // Force reload users to reflect the latest changes
+
         logger.info("Reloading users list to reflect updated ban status");
         await loadUsers();
       } else {
@@ -655,8 +636,7 @@
     } catch (error) {
       logger.error("Error updating user ban status:", error);
       toastStore.showToast(`Failed to update user status: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-      
-      // Reload users to ensure we have the latest data
+
       await loadUsers();
     }
   }
@@ -695,10 +675,8 @@
       isProcessingRequest = true;
       logger.info(`Processing community request ${requestId} with approve=${approve}`);
 
-      // First check if the request still exists by refreshing data
       await loadAllRequests();
 
-      // Check if the request still exists after refresh
       const requestExists = communityRequests.some(req => req.id === requestId);
       if (!requestExists) {
         toastStore.showToast("This request no longer exists. It may have already been processed.", "warning");
@@ -709,12 +687,10 @@
       if (response.success) {
         toastStore.showToast(`Community ${approve ? "approved" : "rejected"} successfully`, "success");
 
-        // Refresh the community requests list
         await loadCommunityRequests();
 
-        // If we're approving, also refresh the communities list to show the newly approved community
         if (approve) {
-          // Wait a moment for the backend to process the approval
+
           setTimeout(() => {
             loadAllRequests();
           }, 1000);
@@ -857,16 +833,12 @@
     });
   }
 
-  // Function to load all requests
   async function loadAllRequests() {
     loadCommunityRequests();
     loadPremiumRequests();
     loadReportRequests();
   }
 
-  // Replace any calls to loadRequests() with loadAllRequests()
-
-  // For example, in the activeTab watcher
   $: if (activeTab === "requests") {
     logger.info("Request tab activated, loading requests data");
     loadAllRequests();
@@ -878,13 +850,11 @@
     loadNewsletterSubscribers();
   }
 
-  // And in status filter handlers
   function handleRequestStatusFilterChange(event) {
     requestStatusFilter = event.target.value;
     loadAllRequests();
   }
 
-  // And in report status filter
   function handleReportStatusFilterChange(event) {
     reportStatusFilter = event.target.value;
     loadReportRequests();
@@ -1663,7 +1633,7 @@
         <Button
           variant="primary"
           on:click={() => {
-            // Ensure editingCategory is not null before using it
+
             const category = editingCategory;
             if (category) {
               handleUpdateCategory(category.id, category.name, category.description, categoryType);
@@ -1676,4 +1646,3 @@
     </div>
   </div>
 {/if}
-

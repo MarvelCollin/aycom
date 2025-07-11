@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
 )
 
 type ThreadRepository interface {
@@ -32,7 +32,6 @@ func NewThreadRepository(db *gorm.DB) ThreadRepository {
 	return &PostgresThreadRepository{db: db}
 }
 
-// RunInTransaction executes the given function within a database transaction
 func (r *PostgresThreadRepository) RunInTransaction(fn func(tx *gorm.DB) error) error {
 	return r.db.Transaction(fn)
 }
@@ -55,15 +54,14 @@ func (r *PostgresThreadRepository) FindThreadByID(id string) (*model.Thread, err
 		return nil, err
 	}
 
-	// If this is a repost, fetch original thread details as well (for API response)
 	if thread.IsRepost && thread.OriginalThreadID != nil {
 		var originalThread model.Thread
 		if err := r.db.Where("thread_id = ?", thread.OriginalThreadID).First(&originalThread).Error; err != nil {
-			// Log but don't fail if original thread can't be found
+
 			log.Printf("Warning: Could not find original thread %s for repost %s: %v",
 				thread.OriginalThreadID.String(), thread.ThreadID.String(), err)
 		} else {
-			// Store original thread details in a field we can access later
+
 			thread.OriginalThread = &originalThread
 		}
 	}
@@ -80,7 +78,6 @@ func (r *PostgresThreadRepository) FindThreadsByUserID(userID string, page, limi
 	var threads []*model.Thread
 	offset := (page - 1) * limit
 
-	// Add debug logging
 	fmt.Printf("Executing FindThreadsByUserID query: userID=%s, offset=%d, limit=%d\n", userUUID, offset, limit)
 
 	result := r.db.Where("user_id = ?", userUUID).
@@ -89,13 +86,10 @@ func (r *PostgresThreadRepository) FindThreadsByUserID(userID string, page, limi
 		Limit(limit).
 		Find(&threads)
 
-	// Check if there was an actual database error
-	// Note: If no records were found, result.Error will be nil
 	if result.Error != nil {
 		return nil, fmt.Errorf("database error in FindThreadsByUserID: %w", result.Error)
 	}
 
-	// If no threads found, return an empty slice (not an error)
 	fmt.Printf("Found %d threads for user %s\n", len(threads), userID)
 	return threads, nil
 }
@@ -104,8 +98,6 @@ func (r *PostgresThreadRepository) FindAllThreads(page, limit int) ([]*model.Thr
 	var threads []*model.Thread
 	offset := (page - 1) * limit
 
-	// Use a more efficient query with proper ordering
-	// and ensure we're not fetching soft-deleted threads
 	result := r.db.
 		Where("deleted_at IS NULL").
 		Order("created_at DESC").
@@ -176,12 +168,11 @@ func (r *PostgresThreadRepository) GetAllThreads(page, limit int) ([]*model.Thre
 		return nil, err
 	}
 
-	// For each thread that is a repost, load the original thread data
 	for _, thread := range threads {
 		if thread.IsRepost && thread.OriginalThreadID != nil {
 			var originalThread model.Thread
 			if err := r.db.Where("thread_id = ?", thread.OriginalThreadID).First(&originalThread).Error; err != nil {
-				// Log error but don't fail the operation
+
 				log.Printf("Failed to load original thread %s for repost %s: %v",
 					thread.OriginalThreadID.String(), thread.ThreadID.String(), err)
 			} else {

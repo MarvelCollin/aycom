@@ -271,16 +271,16 @@ func (s *chatService) AddParticipant(chatID, userID, addedBy string) error {
 	return nil
 }
 
-// AddParticipantDirect adds a participant directly without admin checks
-// This is used by the API gateway when the admin check is handled at a higher level
+
+
 func (s *chatService) AddParticipantDirect(participant *model.ParticipantDTO) error {
-	// Verify chat exists
+	
 	_, err := s.chatRepo.FindChatByID(participant.ChatID)
 	if err != nil {
 		return fmt.Errorf("chat not found: %v", err)
 	}
 
-	// Check if user is already a participant
+	
 	isParticipant, err := s.participantRepo.IsUserInChat(participant.ChatID, participant.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to check if user is already a participant: %v", err)
@@ -320,16 +320,16 @@ func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error 
 	return nil
 }
 
-// RemoveParticipantDirect removes a participant directly without admin checks
-// This is used by the API gateway when the admin check is handled at a higher level
+
+
 func (s *chatService) RemoveParticipantDirect(chatID, userID string) error {
-	// Verify chat exists
+	
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
 		return fmt.Errorf("chat not found: %v", err)
 	}
 
-	// Check if user is a participant
+	
 	isParticipant, err := s.participantRepo.IsUserInChat(chatID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to check if user is a participant: %v", err)

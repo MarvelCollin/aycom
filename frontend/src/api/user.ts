@@ -866,7 +866,7 @@ export async function searchUsers(
       ...(query ? { query } : {})
     });
 
-    // Add optional parameters if provided
+    
     if (options) {
       if (options.sort) queryParams.append("sort", options.sort);
       if (options.filter) queryParams.append("filter", options.filter);
@@ -898,7 +898,7 @@ export async function searchUsers(
         const errorText = await response.text();
           console.error("Error response:", errorText);
 
-          // Try to parse the error response
+          
           try {
             const errorJson = JSON.parse(errorText);
             throw new Error(errorJson.message || `Search request failed with status ${response.status}`);
@@ -914,7 +914,7 @@ export async function searchUsers(
           const data = JSON.parse(responseText);
           console.log("User search parsed data:", data);
 
-          // Normalize the response structure
+          
           const normalizedResponse = {
             success: true,
             users: data.users || data.data?.users || [],
@@ -938,22 +938,22 @@ export async function searchUsers(
       }
     };
 
-    // First try with auth token if available
+    
     if (token) {
       try {
         return await makeSearchRequest(true);
       } catch (authError) {
         console.warn("Failed to search users with auth, trying without auth:", authError);
-        // If auth fails, try without auth as fallback
+        
         return await makeSearchRequest(false);
       }
     } else {
-      // No auth token available, make request without auth
+      
       return await makeSearchRequest(false);
     }
   } catch (error) {
     console.error("Error in searchUsers:", error);
-    // Return a valid empty response structure instead of throwing
+    
     return {
       success: false,
       users: [],

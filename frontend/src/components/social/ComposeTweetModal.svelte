@@ -37,16 +37,14 @@
   let previewImages: string[] = [];
   const maxChars = 280;
 
-  // Category suggestion
   let suggestedCategory = "";
   let suggestedCategoryConfidence = 0;
   let isSuggestingCategory = false;
-  let categoryTouched = false; // User has manually selected a category
+  let categoryTouched = false; 
   let selectedCategory = "";
   let allCategories: Record<string, number> = {};
   const categorySuggestionDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // New features
   let replyPermission = "Everyone";
   let showScheduleOptions = false;
   let scheduledDate = "";
@@ -86,7 +84,6 @@
 
   const dispatch = createEventDispatcher();
 
-  // Check if user is admin
   async function checkUserRole() {
     try {
       const role = await getUserRole();
@@ -97,16 +94,13 @@
     }
   }
 
-  // Load communities
   async function loadCommunities() {
     try {
       isLoadingCommunities = true;
 
-      // First load all available categories for selection
       const categories = await getCommunityCategories();
       availableCommunities = categories;
 
-      // Get current user ID
       const currentUserId = getUserId();
       if (!currentUserId) {
         console.error("Failed to get current user ID");
@@ -114,7 +108,6 @@
         return;
       }
 
-      // Then load the user's joined communities
       const userCommunitiesResponse = await getJoinedCommunities(currentUserId);
       if (userCommunitiesResponse && userCommunitiesResponse.communities) {
         userCommunities = userCommunitiesResponse.communities.map(community => ({
@@ -136,11 +129,9 @@
     }
   }
 
-  // Function to extract hashtags from tweet content
   function extractHashtags(content: string): string[] {
     if (!content) return [];
 
-    // Twitter-style #hashtag pattern
     const hashtagRegex = /#([a-zA-Z0-9_]+)/g;
     const hashtags: string[] = [];
     let match;
@@ -184,12 +175,10 @@
     isAdvertisement = false;
   }
 
-  // Debounced function to get category suggestions
   const getSuggestedCategory = debounce(async (content: string) => {
-    // Don't suggest if user already manually selected
+
     if (categoryTouched) return;
 
-    // Don't suggest if content is too short
     if (!content || content.trim().length < 10) {
       suggestedCategory = "";
       suggestedCategoryConfidence = 0;
@@ -205,14 +194,13 @@
         suggestedCategory = result.category || "";
         suggestedCategoryConfidence = result.confidence || 0;
 
-        // Auto-select the suggested category if confidence is above 0.7
         if (suggestedCategory && suggestedCategoryConfidence > 0.7 && !categoryTouched) {
           selectedCategory = suggestedCategory;
         }
       }
     } catch (error) {
       console.error("Error getting category suggestion:", error);
-      // Don't show error to user, just silently fail
+
       suggestedCategory = "";
       suggestedCategoryConfidence = 0;
     } finally {
@@ -220,7 +208,6 @@
     }
   }, 500);
 
-  // Watch newTweet for changes to trigger category suggestion
   $: if (newTweet) {
     getSuggestedCategory(newTweet);
   }
@@ -233,10 +220,9 @@
   function handleFileSelect(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files) {
-      // Convert FileList to array
+
       const fileArray = Array.from(input.files);
 
-      // Limit to 4 files
       const newFiles = fileArray.slice(0, 4 - files.length);
 
       if (files.length + newFiles.length > 4) {
@@ -245,7 +231,6 @@
 
       files = [...files, ...newFiles];
 
-      // Create preview URLs
       newFiles.forEach(file => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -262,11 +247,10 @@
     previewImages = previewImages.filter((_, i) => i !== index);
   }
 
-  // Toggle schedule options
   function toggleScheduleOptions() {
     showScheduleOptions = !showScheduleOptions;
     if (showScheduleOptions) {
-      // Set default time to current time + 1 hour
+
       const now = new Date();
       const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       scheduledDate = tomorrow.toISOString().split("T")[0];
@@ -277,16 +261,14 @@
     }
   }
 
-  // Toggle community options
   function toggleCommunityOptions() {
     showCommunityOptions = !showCommunityOptions;
   }
 
-  // Toggle poll options
   function togglePollOptions() {
     showPollOptions = !showPollOptions;
     if (!showPollOptions) {
-      // Reset poll state when closing
+
       pollQuestion = "";
       pollOptions = ["", ""];
       pollExpiryHours = 24;
@@ -294,21 +276,18 @@
     }
   }
 
-  // Add poll option
   function addPollOption() {
     if (pollOptions.length < 4) {
       pollOptions = [...pollOptions, ""];
     }
   }
 
-  // Remove poll option
   function removePollOption(index: number) {
     if (pollOptions.length > 2) {
       pollOptions = pollOptions.filter((_, i) => i !== index);
     }
   }
 
-  // Toggle advertisement setting (admin only)
   function toggleAdvertisement() {
     if (isAdmin) {
       isAdvertisement = !isAdvertisement;
@@ -332,49 +311,41 @@
         return;
       }
 
-      // If it's a reply, ensure we have the parent thread ID
       if (replyTo && !replyTo.id) {
         errorMessage = "Missing parent thread ID.";
         return;
       }
 
-      // Extract hashtags from content
       const hashtags = extractHashtags(newTweet);
       console.log("Extracted hashtags:", hashtags);
 
-      // Format the thread data
       const threadData: Record<string, any> = {
         content: newTweet.trim(),
         who_can_reply: replyPermission.toLowerCase(),
         hashtags: hashtags
       };
 
-      // Add category if selected
       if (selectedCategory) {
         threadData.category = selectedCategory;
       }
 
-      // Add scheduled time if set
       if (showScheduleOptions && scheduledDate && scheduledTime) {
         const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
         threadData.scheduled_at = scheduledDateTime.toISOString();
       }
 
-      // Add community if selected
       if (showCommunityOptions && selectedCommunityId) {
         threadData.community_id = selectedCommunityId;
       }
 
-      // Add poll if enabled
       if (showPollOptions) {
-        // Validate poll data
+
         if (!pollQuestion || pollQuestion.trim() === "") {
           errorMessage = "Poll question cannot be empty";
           isPosting = false;
           return;
         }
 
-        // Filter out empty poll options and ensure at least 2 valid options
         const validOptions = pollOptions.filter(opt => opt.trim() !== "");
         if (validOptions.length < 2) {
           errorMessage = "Poll requires at least 2 valid options";
@@ -382,7 +353,6 @@
           return;
         }
 
-        // Format poll data according to backend expectations
         const endTime = new Date();
         endTime.setHours(endTime.getHours() + Number(pollExpiryHours));
 
@@ -394,23 +364,20 @@
         };
       }
 
-      // Add advertisement flag if admin
       if (isAdmin && isAdvertisement) {
         threadData.is_advertisement = true;
       }
 
       console.log("Sending post data:", threadData);
 
-      // Handle reply if in reply mode
       if (replyTo) {
         try {
-          // Direct implementation for better reliability
+
           const authToken = getAuthToken();
           if (!authToken) {
             throw new Error("Authentication required to reply");
           }
 
-          // Extract hashtags from reply content
           const replyHashtags = extractHashtags(newTweet);
           console.log("Extracted hashtags for reply:", replyHashtags);
 
@@ -441,11 +408,11 @@
 
           if (files.length > 0 && data && data.id) {
             try {
-              // First upload files to storage and get URLs
+
               const mediaUrls = await uploadMultipleThreadMedia(files, data.id);
 
               if (mediaUrls && mediaUrls.length > 0) {
-                // Then update thread with media URLs
+
                 await uploadThreadMedia(data.id, files);
                 console.log("Successfully uploaded media for reply:", data.id);
               }
@@ -464,7 +431,7 @@
           errorMessage = "Failed to post your reply. Please try again.";
 
           if (replyError instanceof Error) {
-            // Special handling for CORS-related errors
+
             if (replyError.message.includes("CORS") || replyError.message.includes("cross-origin")) {
               errorMessage = "Browser security prevented the request. This might be a CORS issue.";
             } else if (replyError.message.includes("307") || replyError.message.includes("redirect")) {
@@ -477,17 +444,15 @@
           toastStore.showToast(errorMessage, "error");
         }
       }
-      else { // Creating a new thread
+      else { 
         try {
           console.log("Sending thread data:", JSON.stringify(threadData));
 
-          // Get the authentication token
           const authToken = getAuthToken();
           if (!authToken) {
             throw new Error("Authentication required to post");
           }
 
-          // Use direct fetch implementation instead of higher-level wrappers
           const response = await fetch(`${appConfig.api.baseUrl}/threads`, {
             method: "POST",
             headers: {
@@ -506,11 +471,11 @@
 
           if (files.length > 0 && data && data.id) {
             try {
-              // First upload files to storage and get URLs
+
               const mediaUrls = await uploadMultipleThreadMedia(files, data.id);
 
               if (mediaUrls && mediaUrls.length > 0) {
-                // Then update thread with media URLs
+
                 await uploadThreadMedia(data.id, files);
                 console.log("Successfully uploaded media for thread:", data.id);
               }
@@ -529,7 +494,7 @@
           errorMessage = "Failed to publish your post. Please try again.";
 
           if (threadError instanceof Error) {
-            // Special handling for specific error types
+
             if (threadError.message.includes("CORS") || threadError.message.includes("cross-origin")) {
               errorMessage = "Browser security prevented the request. This might be a CORS issue.";
             } else if (threadError.message.includes("307") || threadError.message.includes("redirect")) {
@@ -556,7 +521,6 @@
     }
   }
 
-  // Initialize component
   onMount(() => {
     checkUserRole();
     loadCommunities();
@@ -1183,7 +1147,7 @@
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3; /* Limit to 3 lines */
+    -webkit-line-clamp: 3; 
   }
 
   .compose-tweet-community-selection,
@@ -1454,7 +1418,6 @@
     }
   }
 
-  /* Dark mode overrides */
   :global(.dark) .category-suggestion-container {
     background-color: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.1);

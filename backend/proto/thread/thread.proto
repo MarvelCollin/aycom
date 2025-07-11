@@ -250,11 +250,10 @@ message ThreadResponse {
   repeated string hashtags = 10;
   repeated string mentioned_user_ids = 11;
   
-  // New fields for repost functionality
   bool is_repost = 12;
   optional string original_thread_id = 13;
-  optional ThreadResponse original_thread = 14; // For storing the original thread data
-  int64 bookmark_count = 15; // Number of bookmarks for the thread
+  optional ThreadResponse original_thread = 14; 
+  int64 bookmark_count = 15; 
 }
 
 message ThreadsResponse {

@@ -39,14 +39,12 @@ func BanUser(c *gin.Context) {
 
 	log.Printf("BanUser Handler: Processing request for user ID: %s", userID)
 
-	// Print full request body for debugging
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Printf("BanUser Handler: Failed to read request body: %v", err)
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Failed to read request body")
 		return
 	}
-	// Re-set the body to be read again
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 	log.Printf("BanUser Handler: Raw request body: %s", string(body))
 
@@ -165,7 +163,6 @@ func BanUser(c *gin.Context) {
 
 	log.Printf("BanUser Handler: Sending request to user service with ban=%v for user ID %s, reason: %s", ban, userID, reason)
 
-	// First, get the user to check if the ban status needs to be changed
 	userResp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
 		UserId: userID,
 	})
@@ -190,7 +187,6 @@ func BanUser(c *gin.Context) {
 	currentBanStatus := userResp.User.IsBanned
 	log.Printf("BanUser Handler: Current ban status for user %s: %v, requested ban status: %v", userID, currentBanStatus, ban)
 
-	// Only update if the status is different
 	if currentBanStatus == ban {
 		log.Printf("BanUser Handler: User %s ban status is already %v, no change needed", userID, ban)
 		var message string

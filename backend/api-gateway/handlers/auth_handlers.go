@@ -137,7 +137,6 @@ func Login(c *gin.Context) {
 	if err != nil {
 		log.Printf("Login: Failed to authenticate user: %v", err)
 
-		// Check if it's a permission denied error (banned user)
 		if st, ok := status.FromError(err); ok && st.Code() == codes.PermissionDenied {
 			utils.SendErrorResponse(c, http.StatusForbidden, "ACCOUNT_BANNED", st.Message())
 			return

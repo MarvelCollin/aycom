@@ -38,7 +38,6 @@
     }
   }
 
-  // Function to handle search
   async function handleSearch() {
     if (!searchQuery.trim()) {
       isSearching = false;
@@ -49,7 +48,6 @@
       isSearching = true;
       loading = true;
 
-      // Try to use the server-side search API
       try {
         const response = await searchBookmarks(searchQuery);
 
@@ -57,7 +55,7 @@
           searchResults = response.bookmarks || [];
           console.log("Search results from API:", searchResults.length);
         } else {
-          // Fall back to client-side search if server search fails
+
           performClientSideSearch();
         }
       } catch (err) {
@@ -73,7 +71,6 @@
     }
   }
 
-  // Perform client-side search as fallback
   function performClientSideSearch() {
     const query = searchQuery.toLowerCase().trim();
     searchResults = bookmarks.filter(bookmark => {
@@ -88,26 +85,22 @@
     console.log("Client-side search results:", searchResults.length);
   }
 
-  // Function to clear search
   function clearSearch() {
     searchQuery = "";
     isSearching = false;
     searchResults = [];
   }
 
-  // Handle search form submission
   function handleSubmit(event: Event) {
     event.preventDefault();
     handleSearch();
   }
 
-  // Handle like event
   async function handleLike(event: CustomEvent) {
     const threadId = event.detail;
     try {
       await likeThread(threadId);
 
-      // Update the bookmark or search result
       const updatedBookmarks = isSearching ? [...searchResults] : [...bookmarks];
       const index = updatedBookmarks.findIndex(b => b.id === threadId);
 
@@ -129,13 +122,11 @@
     }
   }
 
-  // Handle unlike event
   async function handleUnlike(event: CustomEvent) {
     const threadId = event.detail;
     try {
       await unlikeThread(threadId);
 
-      // Update the bookmark or search result
       const updatedBookmarks = isSearching ? [...searchResults] : [...bookmarks];
       const index = updatedBookmarks.findIndex(b => b.id === threadId);
 
@@ -157,16 +148,14 @@
     }
   }
 
-  // Handle remove bookmark event
   async function handleRemoveBookmark(event: CustomEvent) {
     const threadId = event.detail;
     try {
       await removeBookmark(threadId);
 
-      // Remove the item from bookmarks list
       if (isSearching) {
         searchResults = searchResults.filter(bookmark => bookmark.id !== threadId);
-        // Also remove from main bookmarks list
+
         bookmarks = bookmarks.filter(bookmark => bookmark.id !== threadId);
       } else {
         bookmarks = bookmarks.filter(bookmark => bookmark.id !== threadId);

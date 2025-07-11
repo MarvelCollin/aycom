@@ -5,10 +5,8 @@
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  // Reactive declarations
   $: isDarkMode = $theme === "dark";
 
-  // Updated props to match parent component
   export let id: string;
   export let username: string;
   export let displayName: string;
@@ -17,26 +15,22 @@
   export let isVerified: boolean = false;
   export let followerCount: number = 0;
   export let isFollowing: boolean = false;
-  export let showBio: boolean = false; // Default to false to make cards more compact
+  export let showBio: boolean = false; 
   export let showFollowerCount: boolean = true;
-  export let compact: boolean = true; // Default to compact
+  export let compact: boolean = true; 
   export let onToggleFollow: () => void = () => {};
-  export let fuzzyMatchScore: number | undefined = undefined; // Add fuzzy match score
+  export let fuzzyMatchScore: number | undefined = undefined; 
 
-  // Log props for debugging
   $: console.log("ProfileCard props:", { id, username, displayName, isVerified, fuzzyMatchScore });
 
-  // Handle card click to navigate to user profile
   function handleCardClick() {
-    // Navigate to user profile
+
     window.location.href = `/user/${username}`;
     dispatch("profileClick", id);
   }
 
-  // Get correct avatar URL
-  $: avatarUrl = avatar || `https://secure.gravatar.com/avatar/${id}?d=identicon&s=200`;
+  $: avatarUrl = avatar || `https:
 
-  // Function to get color based on fuzzy match score
   function getFuzzyMatchColor(score: number): string {
     if (score >= 0.8) return "fuzzy-match-high";
     if (score >= 0.6) return "fuzzy-match-medium";
@@ -44,7 +38,6 @@
     return "";
   }
 
-  // Function to get fuzzy match label
   function getFuzzyMatchLabel(score: number): string {
     if (score >= 0.8) return "Strong match";
     if (score >= 0.6) return "Good match";
@@ -281,7 +274,6 @@
     color: var(--color-primary);
   }
 
-  /* Fuzzy match badge styles */
   .fuzzy-match-badge {
     display: flex;
     align-items: center;

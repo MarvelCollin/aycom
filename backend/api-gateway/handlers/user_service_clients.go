@@ -445,11 +445,11 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 		fetchLimit = 200
 	}
 
-	// For fuzzy search, we may need to do multiple attempts to get enough candidates
+	
 	var resp *userProto.SearchUsersResponse
 	var err error
 
-	// First attempt: search with original query
+	
 	req := &userProto.SearchUsersRequest{
 		Query: dbQuery,
 		Page:  1,
@@ -464,18 +464,18 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 	log.Printf("User service returned %d users for query '%s'", len(resp.GetUsers()), query)
 
-	// If fuzzy search is enabled and we got few/no results, try broader searches
+	
 	if enableFuzzy && query != "" && len(resp.GetUsers()) < 10 {
 		log.Printf("Fuzzy search enabled with few results (%d), attempting broader search", len(resp.GetUsers()))
 
-		// Try with substrings of the query
+		
 		broadQueries := []string{}
 		if len(query) > 2 {
-			// Try with first 3 characters
+			
 			broadQueries = append(broadQueries, query[:3])
 		}
 		if len(query) > 3 {
-			// Try with first 4 characters
+			
 			broadQueries = append(broadQueries, query[:4])
 		}
 
@@ -495,7 +495,7 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 			log.Printf("Broader search with '%s' returned %d users", broadQuery, len(broadResp.GetUsers()))
 
-			// Merge results, avoiding duplicates
+			
 			existingUsers := make(map[string]bool)
 			for _, user := range resp.GetUsers() {
 				existingUsers[user.GetId()] = true
@@ -508,7 +508,7 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 				}
 			}
 
-			// If we have enough candidates now, break
+			
 			if len(resp.GetUsers()) >= 20 {
 				break
 			}

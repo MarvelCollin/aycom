@@ -25,24 +25,24 @@
   let nestedRepliesMap = new Map<string, ExtendedTweet[]>();
   let showRepliesMap = new Map<string, boolean>();
   let repliesMap = new Map<string, ExtendedTweet[]>();
-  
+
   let showReplyModal = false;
   let replyToTweet: ITweet | null = null;
   let replyText = '';
   let isSubmitting = false;
-  
+
   let showMediaOverlay = false;
   let currentMediaIndex = 0;
   let currentMediaArray: any[] = [];
   let currentTweet: ExtendedTweet | null = null;
-  
+
   let isDarkMode = false;
 
   $: isDarkMode = $theme === "dark";
 
   function normalizeReplyStructure(replies) {
     if (!Array.isArray(replies)) return [];
-    
+
     return replies.map(replyItem => {
       if (replyItem.reply && typeof replyItem.reply === 'object') {
         console.log('DEBUG: Normalizing nested reply structure', {
@@ -53,7 +53,7 @@
             nested_content: replyItem.reply.content || '(no nested content)'
           }
         });
-        
+
         const normalizedReply = {
           ...replyItem.reply,
           id: replyItem.reply.id || replyItem.id,
@@ -61,15 +61,15 @@
           user_data: replyItem.user_data || replyItem.reply.user_data,
           author: replyItem.author || replyItem.reply.author
         };
-        
+
         console.log('DEBUG: After normalization:', {
           id: normalizedReply.id,
           content: normalizedReply.content || '(still empty)'
         });
-        
+
         return normalizedReply;
       }
-      
+
       return replyItem;
     });
   }
@@ -77,31 +77,31 @@
   async function handleLoadReplies(event: CustomEvent<string>) {
     const threadId = event.detail;
     console.log(`Loading replies for thread ${threadId}`);
-    
+
     if (!threadId) {
       console.error('No thread ID provided');
       return;
     }
-    
+
     const isCurrentlyShowing = showRepliesMap.get(threadId) || false;
     showRepliesMap.set(threadId, !isCurrentlyShowing);
-    
+
     if (isCurrentlyShowing) {
       showRepliesMap = new Map(showRepliesMap);
       return;
     }
-    
+
     if (repliesMap.has(threadId)) {
       showRepliesMap = new Map(showRepliesMap);
       return;
     }
-    
+
     try {
       const response = await getThreadReplies(threadId);
       console.log('DEBUG: API response for thread replies:', response);
       if (response && response.replies) {
         console.log(`DEBUG: Received ${response.replies.length} replies for thread ${threadId}`);
-        
+
         if (response.replies.length > 0) {
           console.log('DEBUG: First reply structure:', {
             direct: response.replies[0],
@@ -119,9 +119,9 @@
             } : 'no user property'
           });
         }
-        
+
         const normalizedReplies = normalizeReplyStructure(response.replies);
-        
+
         repliesMap.set(threadId, normalizedReplies);
         repliesMap = new Map(repliesMap);
       }
@@ -137,59 +137,59 @@
   async function handleReply(event) {
     const threadId = event.detail;
     console.log(`Handling reply to thread: ${threadId}`);
-    
+
     const targetTweet = thread;
     if (!targetTweet) {
       console.error(`Tweet with ID ${threadId} not found`);
       toastStore.showToast('Error finding the tweet to reply to', 'error');
       return;
     }
-    
+
     replyToTweet = targetTweet;
     showReplyModal = true;
   }
-  
+
   async function submitReply() {
     if (!replyToTweet || !replyText.trim()) return;
-    
+
     const typedReplyToTweet = replyToTweet as ExtendedTweet;
     if (!typedReplyToTweet.id) return;
-    
+
     try {
       isSubmitting = true;
       toastStore.showToast('Posting reply...', 'info');
-      
+
       console.log("Attempting to post reply to thread:", typedReplyToTweet.id);
       console.log("Reply content:", replyText);
-      
+
       if (!authStore.isAuthenticated()) {
         throw new Error('Authentication required. Please log in.');
       }
-      
+
       const response = await replyToThread(typedReplyToTweet.id, {
         content: replyText.trim()
       });
-      
+
       console.log("Reply API response:", response);
-      
+
       showReplyModal = false;
       toastStore.showToast('Reply posted successfully!', 'success');
-      
+
       replyToTweet = null;
       replyText = '';
       isSubmitting = false;
-      
+
       try {
         const replyId = typedReplyToTweet.id;
         if (replyId) {
           const updatedReplies = await getThreadReplies(replyId);
-          
+
           if (updatedReplies && updatedReplies.replies) {
             repliesMap.set(replyId, updatedReplies.replies);
             showRepliesMap.set(replyId, true);
             repliesMap = new Map(repliesMap);
             showRepliesMap = new Map(showRepliesMap);
-            
+
             if (thread) {
               thread.replies_count += 1;
               thread = { ...thread }; 
@@ -206,7 +206,7 @@
       isSubmitting = false;
     }
   }
-  
+
   function handleReplyModalClose() {
     showReplyModal = false;
     replyToTweet = null;
@@ -217,14 +217,14 @@
   function formatThreadData(responseData): ExtendedTweet {
     try {
       console.log("Formatting thread data from API response:", responseData);
-      
+
       if (!responseData) {
         console.error("Empty or null response data provided to formatThreadData");
         return createEmptyThreadData();
       }
 
       const formattedId = String(responseData.id || responseData.thread_id || threadId || "");
-      
+
       if (!formattedId) {
         console.error("No valid ID found in thread data");
         return createEmptyThreadData();
@@ -269,7 +269,7 @@
       return createEmptyThreadData();
     }
   }
-  
+
   function createEmptyThreadData(): ExtendedTweet {
     return {
       id: String(threadId || ""),
@@ -305,14 +305,14 @@
         console.error("Empty or null reply data provided to formatReplyData");
         return null;
       }
-      
+
       const formattedId = String(replyData.id || "");
-      
+
       if (!formattedId) {
         console.error("No valid ID found in reply data");
         return null;
       }
-      
+
       return {
         id: formattedId,
         content: replyData.content || "",
@@ -363,7 +363,7 @@
   async function loadThreadWithReplies() {
     isLoading = !thread; 
     let apiDataLoaded = false;
-    
+
     try {
       if (!threadId) {
         console.error("No thread ID available");
@@ -458,20 +458,20 @@
 
       if (response && response.replies && Array.isArray(response.replies)) {
         console.log(`DEBUG: Received ${response.replies.length} replies for thread ${threadId}`);
-        
+
         if (response.replies.length > 0) {
           console.log('DEBUG: First reply structure:', response.replies[0]);
         }
-        
+
         const normalizedReplies = normalizeReplyStructure(response.replies);
-        
+
         replies = normalizedReplies
           .map(formatReplyData)
           .filter(reply => reply !== null); 
 
         repliesMap.set(threadId, replies);
         showRepliesMap.set(threadId, true);
-        
+
         if (replies.length > 0) {
           console.log("Processed reply structure:", replies[0]);
         }
@@ -519,7 +519,7 @@
       if (thread) {
         thread.replies_count = (thread.replies_count || 0) + 1;
       }
-      
+
       const currentReplies = repliesMap.get(threadId) || [];
       repliesMap.set(threadId, [processedReply, ...currentReplies]);
       repliesMap = new Map(repliesMap);
@@ -555,10 +555,9 @@
     console.log('Repost thread:', event.detail); 
   }
 
-  // Handle media overlay functionality
   function openMediaOverlay(tweet: ExtendedTweet, mediaIndex: number = 0) {
     if (!tweet.media || tweet.media.length === 0) return;
-    
+
     currentTweet = tweet;
     currentMediaArray = tweet.media;
     currentMediaIndex = mediaIndex;
@@ -577,7 +576,6 @@
     openMediaOverlay(tweet, mediaIndex || 0);
   }
 
-  // Function to add mock images to the current thread for testing
   function triggerMockImages() {
     if (!thread) return;
 
@@ -605,7 +603,6 @@
       }
     ];
 
-    // Add mock images to the thread
     thread = {
       ...thread,
       media: mockImages
@@ -615,23 +612,18 @@
     toastStore.showToast("Mock images added! Click on any image to test the overlay.", "success");
   }
 
-  // Initialize component
   onMount(() => {
-    // Check if we have thread data in sessionStorage from TweetCard navigation
+
     try {
       const storedThread = sessionStorage.getItem("lastViewedThread");
       if (storedThread) {
         const parsedThread = JSON.parse(storedThread);
 
-        // Verify this is the correct thread for the current page
-        // Compare as strings to avoid type mismatch issues
         if (String(parsedThread.id) === String(threadId)) {
-          // Use the stored thread data as an initial render
+
           thread = formatThreadData(parsedThread);
           console.log("Using thread data from sessionStorage for initial render:", thread);
-          
-          // If we have complete data from sessionStorage, we'll show it immediately
-          // while waiting for the API response
+
           if (thread.content && thread.username) {
             isLoading = false;
           }
@@ -640,19 +632,16 @@
           console.log(`Stored: ${String(parsedThread.id)}, Current: ${String(threadId)}`);
         }
 
-        // Keep session storage until we confirm API data loads successfully
       }
     } catch (error) {
       console.error("Error parsing stored thread data:", error);
     }
 
-    // Always load fresh thread data from API to ensure it's up-to-date
     loadThreadWithReplies();
   });
 
-  // Clean up subscription on component destruction
   onDestroy(() => {
-    // No cleanup needed since we're not using store subscription
+
   });
 </script>
 
@@ -745,7 +734,7 @@
                 Replies ({thread.replies_count || 0})
               </h3>
             </div>
-            
+
             {#each (repliesMap.get(thread.id) || []) as reply (reply.id)}
               <div class="reply-item">
                 <TweetCard
@@ -813,7 +802,7 @@
           aria-label="Close reply dialog"
         >×</button>
       </div>
-      
+
       <div class="aycom-reply-body">
         <div class="aycom-original-tweet">
           <div class="aycom-tweet-user">
@@ -828,11 +817,11 @@
             </div>
           </div>
           <div class="aycom-tweet-content">{(replyToTweet as ExtendedTweet).content}</div>
-          
+
           <!-- Reply line connector -->
           <div class="aycom-reply-connector" aria-hidden="true"></div>
         </div>
-        
+
         <div class="aycom-reply-form">
           <div class="aycom-form-user">
             <img 
@@ -849,7 +838,7 @@
               ></textarea>
             </div>
           </div>
-          
+
           <div class="aycom-reply-actions">
             <div class="aycom-reply-tools">
               <button class="aycom-tool-btn" title="Add media" aria-label="Add media">
@@ -897,7 +886,7 @@
 {/if}
 
 <style>
-  /* Base styles */
+
   .thread-detail-container {
     min-height: calc(100vh - 60px);
     max-height: 100vh;
@@ -912,7 +901,6 @@
     overflow-y: auto;
   }
 
-  /* Dark theme overrides - these will apply when dark theme is active */
   :global([data-theme="dark"]) .thread-detail-container {
     background-color: var(--dark-bg-primary);
     color: var(--dark-text-primary);
@@ -1021,7 +1009,6 @@
     background-color: var(--dark-border-color);
   }
 
-  /* Reply Modal Styles */
   .aycom-reply-overlay {
     position: fixed;
     top: 0;
@@ -1037,7 +1024,7 @@
     -webkit-backdrop-filter: blur(4px);
     animation: fadeIn 0.2s ease-in-out;
   }
-  
+
   .aycom-reply-modal {
     width: 100%;
     max-width: 600px;
@@ -1059,7 +1046,7 @@
     background-color: #ffffff;
     color: #1c1c1c;
   }
-  
+
   .aycom-reply-header {
     display: flex;
     justify-content: space-between;
@@ -1072,13 +1059,13 @@
   .aycom-light-theme .aycom-reply-header {
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   }
-  
+
   .aycom-reply-title {
     font-size: 20px;
     font-weight: 700;
     margin: 0;
   }
-  
+
   .aycom-reply-close-btn {
     background: none;
     border: none;
@@ -1093,7 +1080,7 @@
     justify-content: center;
     transition: background-color 0.2s ease;
   }
-  
+
   .aycom-reply-close-btn:hover {
     background-color: rgba(255, 255, 255, 0.1);
   }
@@ -1101,26 +1088,26 @@
   .aycom-light-theme .aycom-reply-close-btn:hover {
     background-color: rgba(0, 0, 0, 0.1);
   }
-  
+
   .aycom-reply-body {
     padding: 0;
     flex: 1;
     overflow-y: auto;
     max-height: calc(90vh - 53px);
   }
-  
+
   .aycom-original-tweet {
     padding: 16px 16px 0;
     position: relative;
   }
-  
+
   .aycom-tweet-user {
     display: flex;
     align-items: flex-start;
     gap: 12px;
     margin-bottom: 12px;
   }
-  
+
   .aycom-profile-pic {
     width: 40px;
     height: 40px;
@@ -1128,17 +1115,17 @@
     object-fit: cover;
     flex-shrink: 0;
   }
-  
+
   .aycom-user-info {
     flex: 1;
   }
-  
+
   .aycom-display-name {
     font-weight: 700;
     font-size: 15px;
     line-height: 1.3;
   }
-  
+
   .aycom-username {
     color: #71767b;
     font-size: 15px;
@@ -1148,7 +1135,7 @@
   .aycom-light-theme .aycom-username {
     color: #536471;
   }
-  
+
   .aycom-tweet-content {
     font-size: 16px;
     line-height: 1.5;
@@ -1157,7 +1144,7 @@
     white-space: pre-wrap;
     word-wrap: break-word;
   }
-  
+
   .aycom-reply-connector {
     position: absolute;
     left: 36px;
@@ -1170,22 +1157,22 @@
   .aycom-light-theme .aycom-reply-connector {
     background-color: #cfd9de;
   }
-  
+
   .aycom-reply-form {
     padding: 4px 16px 16px;
     position: relative;
   }
-  
+
   .aycom-form-user {
     display: flex;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .aycom-input-container {
     flex: 1;
   }
-  
+
   .aycom-reply-input {
     width: 100%;
     background: none;
@@ -1199,7 +1186,7 @@
     padding: 12px 0;
     min-height: 120px;
   }
-  
+
   .aycom-reply-input::placeholder {
     color: #71767b;
   }
@@ -1207,7 +1194,7 @@
   .aycom-light-theme .aycom-reply-input::placeholder {
     color: #536471;
   }
-  
+
   .aycom-reply-actions {
     display: flex;
     justify-content: space-between;
@@ -1215,12 +1202,12 @@
     margin-top: 12px;
     margin-left: 52px;
   }
-  
+
   .aycom-reply-tools {
     display: flex;
     gap: 16px;
   }
-  
+
   .aycom-tool-btn {
     background: none;
     border: none;
@@ -1233,17 +1220,17 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .aycom-tool-btn:hover {
     background-color: rgba(29, 155, 240, 0.1);
   }
-  
+
   .aycom-submit-container {
     display: flex;
     align-items: center;
     gap: 12px;
   }
-  
+
   .aycom-char-count {
     font-size: 13px;
     color: #71767b;
@@ -1252,7 +1239,7 @@
   .aycom-light-theme .aycom-char-count {
     color: #536471;
   }
-  
+
   .aycom-submit-btn {
     background-color: #1d9bf0;
     color: white;
@@ -1265,11 +1252,11 @@
     transition: background-color 0.2s ease;
     min-width: 80px;
   }
-  
+
   .aycom-submit-btn:hover:not(:disabled) {
     background-color: #1a8cd8;
   }
-  
+
   .aycom-submit-btn:disabled {
     background-color: #1e3a5f;
     cursor: not-allowed;
@@ -1289,7 +1276,7 @@
       opacity: 1;
     }
   }
-  
+
   @keyframes slideUp {
     from {
       transform: translateY(50px);
@@ -1331,7 +1318,6 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
   }
 
-  /* Trigger Mock Images Button */
   .trigger-mock-button {
     transition: all 0.2s;
     display: flex;

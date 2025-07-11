@@ -1,23 +1,13 @@
-/**
- * Trend-related interfaces
- */
-
-/**
- * Trend interface
- */
 export interface ITrend {
   id: string;
-  title?: string;     // Some APIs use title
-  name?: string;      // Some APIs use name
+  title?: string;     
+  name?: string;      
   category?: string;
-  post_count?: number; // Some APIs use post_count
-  tweet_count?: number; // Some APIs use tweet_count
+  post_count?: number; 
+  tweet_count?: number; 
   query?: string;
 }
 
-/**
- * Trends response
- */
 export interface ITrendsResponse {
   success: boolean;
   data: {

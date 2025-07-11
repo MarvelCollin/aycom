@@ -16,18 +16,18 @@ export async function uploadMedia(file: File, folder: string = "chat"): Promise<
   try {
     logger.debug(`Uploading media file ${file.name} to ${folder}`);
 
-    // Create a FormData object to send the file
+    
     const formData = new FormData();
     formData.append("file", file);
     formData.append("folder", folder);
 
-    // Get auth token
+    
     const token = getAuthToken();
     if (!token) {
       throw new Error("Authentication token not found");
     }
 
-    // Call the backend API endpoint instead of Supabase directly
+    
     const response = await fetch(`${API_BASE_URL}/media`, {
       method: "POST",
       headers: {
@@ -48,7 +48,7 @@ export async function uploadMedia(file: File, folder: string = "chat"): Promise<
       throw new Error("Upload response missing url");
     }
 
-    // Return the media info
+    
     return {
       url: data.url || data.data?.url,
       mediaType: data.type || data.data?.type || getMediaTypeFromFile(file)
@@ -56,7 +56,7 @@ export async function uploadMedia(file: File, folder: string = "chat"): Promise<
   } catch (error) {
     logger.error(`Failed to upload media: ${error}`);
 
-    // Fallback to direct Supabase upload (if configured)
+    
     logger.debug("Attempting fallback to direct storage upload");
     try {
       return await uploadMediaToStorage(file, folder);
@@ -80,5 +80,5 @@ function getMediaTypeFromFile(file: File): string {
   } else if (type === "video") {
     return "video";
   }
-  return "image"; // Default fallback
+  return "image"; 
 }

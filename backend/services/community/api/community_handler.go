@@ -788,11 +788,11 @@ func (h *CommunityHandler) AddChatParticipant(ctx context.Context, req *communit
 
 	log.Printf("AddChatParticipant: Adding user %s to chat %s", req.UserId, req.ChatId)
 
-	// For now, let's bypass the admin check by making the user being added an admin temporarily
-	// This is a temporary fix until we implement proper authentication context
-	// In a real implementation, you'd get the current user ID from the JWT token in the context
+	
+	
+	
 
-	// First, let's try to add the participant directly via repository to bypass admin checks
+	
 	participant := &model.ParticipantDTO{
 		ChatID:   req.ChatId,
 		UserID:   req.UserId,
@@ -800,7 +800,7 @@ func (h *CommunityHandler) AddChatParticipant(ctx context.Context, req *communit
 		JoinedAt: time.Now(),
 	}
 
-	// Get repository access through the chat service (we'll need to add this method)
+	
 	err := h.chatService.AddParticipantDirect(participant)
 	if err != nil {
 		log.Printf("AddChatParticipant: Error adding participant: %v", err)
@@ -833,7 +833,7 @@ func (h *CommunityHandler) RemoveChatParticipant(ctx context.Context, req *commu
 
 	log.Printf("RemoveChatParticipant: Removing user %s from chat %s", req.UserId, req.ChatId)
 
-	// Use direct removal to bypass admin checks temporarily
+	
 	err := h.chatService.RemoveParticipantDirect(req.ChatId, req.UserId)
 	if err != nil {
 		log.Printf("RemoveChatParticipant: Error removing participant: %v", err)
@@ -934,11 +934,11 @@ func (h *CommunityHandler) DeleteMessage(ctx context.Context, req *communityProt
 		return nil, status.Error(codes.Unauthenticated, "failed to authenticate user")
 	}
 
-	// Check if this is an unsend operation by looking for chat_id in context
+	
 	chatID, isUnsend := ctx.Value("chat_id").(string)
 
 	if isUnsend && chatID != "" {
-		// This is an unsend operation
+		
 		log.Printf("DeleteMessage: Performing unsend operation for message %s in chat %s", req.MessageId, chatID)
 		err := h.chatService.UnsendMessage(chatID, req.MessageId, userID)
 		if err != nil {
@@ -946,8 +946,8 @@ func (h *CommunityHandler) DeleteMessage(ctx context.Context, req *communityProt
 		}
 		return &communityProto.EmptyResponse{}, nil
 	} else {
-		// This is a regular delete operation
-		chatID = "" // Keep empty for regular delete
+		
+		chatID = "" 
 		err = h.chatService.DeleteMessage(chatID, req.MessageId, userID)
 		if err != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete message: %v", err))
@@ -1015,12 +1015,12 @@ func (h *CommunityHandler) SearchMessages(ctx context.Context, req *communityPro
 }
 
 func extractUserIDFromContext(ctx context.Context) (string, error) {
-	// Extract the user ID from the context
+	
 	if userID, ok := ctx.Value("user_id").(string); ok && userID != "" {
 		return userID, nil
 	}
 
-	// Fallback to system-user only if no user ID is found
+	
 	return "system-user", nil
 }
 

@@ -56,22 +56,18 @@
     return new Date().toISOString();
   }
 
-  // Wrapper function with proper typing to fix TypeScript error
   async function sendMessageToApi(chatId: string, messageData: any) {
-    // Create a new object with ONLY the properties we need, to avoid any unwanted fields
+
     const formattedData = {
-      content: messageData.content || "" // Ensure content field exists and is lowercase
+      content: messageData.content || "" 
     };
 
-    // Only add attachment if it exists
     if (messageData.attachment) {
       formattedData["attachment"] = messageData.attachment;
     }
 
-    // Log the exact data being sent to the API
     logger.debug(`Sending message to chat ${chatId} with data:`, JSON.stringify(formattedData));
 
-    // Use the direct import from chatApi instead of the alias
     return await chatApi.sendMessage(chatId, formattedData);
   }
 
@@ -90,9 +86,8 @@
     deleteChat
   } = chatApi;
 
-  import "../styles/pages/messages.css"; // Import the CSS file
+  import "../styles/pages/messages.css"; 
 
-  // Interface definitions for type safety
   interface Attachment {
     id: string;
     type: "image" | "gif" | "video";
@@ -131,7 +126,7 @@
 
   interface LastMessage {
     content: string;
-    timestamp: string;  // Only allow string type
+    timestamp: string;  
     sender_id: string;
     sender_name?: string;
   }
@@ -154,17 +149,14 @@
 
   const { theme } = useTheme();
 
-  // Reactive declarations
   $: authState = $authStore;
   $: isDarkMode = $theme === "dark";
 
-  // User profile data
   let username = "";
   let displayName = "";
-  let avatar = "https://secure.gravatar.com/avatar/0?d=mp"; // Default avatar with proper image URL
+  let avatar = "https://secure.gravatar.com/avatar/0?d=mp"; 
   let isLoadingProfile = true;
 
-  // Chat state
   let selectedChat: Chat | null = null;
   let chats: Chat[] = [];
   let isLoadingChats = true;
@@ -177,45 +169,34 @@
   let userSearchResults: StandardUser[] = [];
   let userSearchQuery = "";
 
-  // Mobile view state
   let isMobile = false;
   let showMobileMenu = false;
 
-  // Modal visibility flags
   let showNewChatModal = false;
   let showCreateGroupModal = false;
   let showManageGroupModal = false;
   let showDebug = false;
 
-  // Toast notifications - managed by toastStore
-
-  // Group chat modal state
   const showGroupChatModal = false;
 
-  // State for file uploads
   let isUploading = false;
 
-  // Add state for confirm dialog
   let showDeleteConfirm = false;
   let chatToDelete: Chat | null = null;
 
-  // Handle attachment selection
   async function handleAttachment(type: "image" | "gif") {
     logger.debug(`Attachment selection requested: ${type}`);
 
-    // Create a file input element
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.multiple = false;
 
-    // Set accepted file types based on attachment type
     if (type === "image") {
       fileInput.accept = "image/jpeg,image/png,image/jpg";
     } else if (type === "gif") {
       fileInput.accept = "image/gif";
     }
 
-    // Handle file selection
     fileInput.onchange = async (event) => {
       const target = event.target as HTMLInputElement;
       const files = target.files;
@@ -226,8 +207,7 @@
 
       const file = files[0];
 
-      // Check file size (limit to 10MB)
-      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; 
       if (file.size > MAX_FILE_SIZE) {
         toastStore.showToast({
           message: "File is too large. Maximum size is 10MB.",
@@ -239,14 +219,12 @@
       try {
         isUploading = true;
 
-        // Upload the file to storage
         const result = await uploadMedia(file, "chat");
 
         if (!result || !result.url) {
           throw new Error("Failed to upload file");
         }
 
-        // Create an attachment object
         const attachment: Attachment = {
           id: `temp-${Date.now()}`,
           type: result.mediaType === "video" ? "video" :
@@ -254,14 +232,12 @@
           url: result.url
         };
 
-        // Add to selected attachments
         selectedAttachments = [...selectedAttachments, attachment];
 
         logger.info(`Attachment uploaded successfully: ${attachment.type}`);
 
-        // If the attachment is ready, send the message with the attachment
         if (selectedChat) {
-          // Send a message with the attachment
+
           await sendMessageWithAttachment(attachment);
         }
       } catch (error) {
@@ -275,19 +251,16 @@
       }
     };
 
-    // Trigger the file input click
     fileInput.click();
   }
 
-  // Function to send a message with attachment
   async function sendMessageWithAttachment(attachment: Attachment) {
     if (!selectedChat) return;
 
     try {
-      // Generate a unique temporary ID for this message
+
       const tempMessageId = `temp-${Date.now()}`;
 
-      // Create content with attachment info
       const content = JSON.stringify({
         text: "",
         attachment: {
@@ -296,7 +269,6 @@
         }
       });
 
-      // Create message object
       const message: Message = {
         id: tempMessageId,
         chat_id: selectedChat.id,
@@ -312,13 +284,11 @@
         attachments: [attachment]
       };
 
-      // Optimistically add message to UI
       selectedChat = {
         ...selectedChat,
         messages: [...selectedChat.messages, message]
       };
 
-      // Scroll to bottom after message is added
       setTimeout(() => {
         const messagesContainer = document.querySelector(".messages-container");
         if (messagesContainer) {
@@ -326,7 +296,6 @@
         }
       }, 50);
 
-      // Create a last message object for the chat list
       const newLastMessage: LastMessage = {
         content: attachment.type === "image" ? "📷 Image" :
                  attachment.type === "gif" ? "🎞️ GIF" :
@@ -336,7 +305,6 @@
         sender_name: displayName || "You"
       };
 
-      // Update chat list with the new message
       chats = chats.map(chat => {
         if (chat.id === selectedChat?.id) {
           return {
@@ -347,17 +315,15 @@
         return chat;
       }) as Chat[];
 
-      // Move the active chat to the top
       const activeChatId = selectedChat?.id;
       if (activeChatId) {
         const activeChat = chats.find(c => c.id === activeChatId);
         if (activeChat) {
-          // Remove the active chat from the array
+
           const otherChats = chats.filter(c => c.id !== activeChatId);
-          // Add it back at the beginning
+
           chats = [activeChat, ...otherChats];
 
-          // Do the same for filtered chats
           const filteredActiveChat = filteredChats.find(c => c.id === activeChatId);
           if (filteredActiveChat) {
             const otherFilteredChats = filteredChats.filter(c => c.id !== activeChatId);
@@ -372,17 +338,14 @@
         }
       }
 
-      // Send message via API
       const messageData = {
         content: content,
         message_id: tempMessageId,
         attachments: [attachment]
       };
 
-      // Log the API call attempt
       logger.debug(`Sending message with attachment to chat ${selectedChat?.id} via API`);
 
-      // First try to send via WebSocket for immediate real-time delivery
       const wsMessage = {
         type: "text" as MessageType,
         content: content,
@@ -395,11 +358,9 @@
         timestamp: new Date().toISOString()
       };
 
-      // Send via WebSocket first for real-time delivery
       websocketStore.sendMessage(selectedChat?.id || "", wsMessage);
       logger.debug(`Message with attachment sent via WebSocket to chat ${selectedChat?.id}`);
 
-      // Then send via API for persistence
       try {
         const result = await sendMessageToApi(selectedChat?.id || "", {
           content: messageData.content,
@@ -407,7 +368,6 @@
         });
         logger.debug("Message with attachment sent successfully via API");
 
-        // Update the message to mark it as confirmed by the server
         if (selectedChat) {
           selectedChat = {
             ...selectedChat,
@@ -429,7 +389,6 @@
           type: "error"
         });
 
-        // Mark the message as potentially failed
         if (selectedChat) {
           selectedChat = {
             ...selectedChat,
@@ -449,17 +408,15 @@
         type: "error"
       });
     } finally {
-      // Clear selected attachments after sending
+
       selectedAttachments = [];
     }
   }
 
-  // Function to check viewport size and set mobile state
   function checkViewport() {
     isMobile = window.innerWidth < 768;
   }
 
-  // WebSocket connection status monitoring (no auto-reconnect to prevent loops)
   $: {
     if ($websocketStore) {
       const isWsConnected = $websocketStore.connected;
@@ -467,34 +424,32 @@
     }
   }
 
-  // Improved function to initialize WebSocket connections for active chats
   function initializeWebSocketConnections() {
     try {
-      // First priority: connect to selected chat
+
       if (selectedChat) {
         logger.info(`Connecting to WebSocket for selected chat: ${selectedChat.id}`);
         try {
-          // Use type assertion to avoid TypeScript error
+
           (websocketStore as any).connect(selectedChat.id);
         } catch (err) {
           logger.error(`Error connecting to WebSocket for selected chat: ${err}`);
         }
       }
 
-      // Second priority: connect to most recent chats (up to 3)
       if (chats && chats.length > 0) {
-        const recentChats = chats.slice(0, 3); // Limit to 3 recent chats
+        const recentChats = chats.slice(0, 3); 
 
         for (const chat of recentChats) {
-          // Skip if it's the selected chat (already connected)
+
           if (selectedChat && chat.id === selectedChat.id) continue;
 
           logger.debug(`Connecting to WebSocket for recent chat: ${chat.id}`);
           try {
-            // Use type assertion to avoid TypeScript error
+
             (websocketStore as any).connect(chat.id);
           } catch (err) {
-            // Log but don't show UI error for background connections
+
             logger.error(`Error connecting to WebSocket for chat ${chat.id}: ${err}`);
           }
         }
@@ -504,7 +459,6 @@
     }
   }
 
-  // Function to handle WebSocket messages
   function handleWebSocketMessage(message: ChatMessage) {
     logDebug("Received WebSocket message");
     console.log("WebSocket message details:", message);
@@ -514,7 +468,6 @@
       return;
     }
 
-    // Log detailed message info for debugging
     logger.debug(`[WebSocket] Message received for chat ${message.chat_id}:`, {
       type: message.type,
       content: message.content,
@@ -522,14 +475,13 @@
       timestamp: message.timestamp
     });
 
-    // Process system messages differently
     if (message.type === "system") {
-      // Just log system messages for now
+
       logger.info(`System message: ${message.content}`);
       return;
-    }      // Check if this message is for the selected chat
+    }      
       if (selectedChat && message.chat_id === selectedChat.id) {
-        // Skip messages sent by the current user (already handled by optimistic updates)
+
         const currentUserId = $authStore.user_id;
         const messageSenderId = message.user_id || message.sender_id;
 
@@ -541,26 +493,23 @@
           return;
         }
 
-        // Update the messages in the selected chat
         if (message.type === "text" && message.content) {
-          // Enhanced duplicate check - multiple strategies
+
           const messageExists = selectedChat.messages.some(msg => {
-            // Strategy 1: Direct ID match
+
             if (msg.id === message.message_id || (message.message_id && msg.id === message.message_id)) {
               return true;
             }
 
-            // Strategy 2: Content + sender + timing match (for optimistic updates)
             if (msg.content === message.content &&
                 msg.sender_id === messageSenderId &&
                 msg.timestamp && message.timestamp) {
               const timeDiff = Math.abs(new Date(msg.timestamp).getTime() - new Date(message.timestamp).getTime());
-              if (timeDiff < 5000) { // 5 second window
+              if (timeDiff < 5000) { 
                 return true;
               }
             }
 
-            // Strategy 3: Temporary ID match (for messages being confirmed)
             if (msg.id?.startsWith("temp-") && message.content === msg.content && messageSenderId === msg.sender_id) {
               return true;
             }
@@ -576,7 +525,6 @@
             return;
           }
 
-        // Create a properly formatted message object
         const newMessage: Message = {
           id: message.message_id || `ws-${Date.now()}`,
           chat_id: message.chat_id,
@@ -596,13 +544,11 @@
 
         logger.info(`Adding new message from WebSocket to chat ${message.chat_id}:`, newMessage);
 
-        // Add the message to the selected chat
         selectedChat = {
           ...selectedChat,
           messages: [...(selectedChat.messages || []), newMessage]
         };
 
-        // Scroll to bottom
         setTimeout(() => {
           const messagesContainer = document.querySelector(".messages-container");
           if (messagesContainer) {
@@ -612,12 +558,11 @@
       }
     }
 
-    // Update the last message in the chat list for all chats
     if (message.type === "text" && message.content) {
-      // Find the chat in our list
+
       const chatIndex = chats.findIndex(c => c.id === message.chat_id);
       if (chatIndex >= 0) {
-        // Create a properly formatted last message
+
         const lastMessage: LastMessage = {
           content: message.content || "",
           timestamp: typeof message.timestamp === "string"
@@ -629,26 +574,22 @@
           sender_name: message.sender_name || "User"
         };
 
-        // Update the chat with the new last message
         const updatedChat = {
           ...chats[chatIndex],
           last_message: lastMessage,
-          // Increment unread count if this isn't the selected chat
+
           unread_count: selectedChat?.id === message.chat_id
             ? chats[chatIndex].unread_count
             : (chats[chatIndex].unread_count || 0) + 1
         };
 
-        // Move this chat to the top of the list
         const updatedChats = [
           updatedChat,
           ...chats.filter(c => c.id !== message.chat_id)
         ];
 
-        // Update the chat list with deduplication
         chats = deduplicateChats(updatedChats);
 
-        // Also update filtered chats with deduplication
         const filteredIndex = filteredChats.findIndex(c => c.id === message.chat_id);
         if (filteredIndex >= 0) {
           const updatedFilteredChat = {
@@ -659,7 +600,6 @@
               : (filteredChats[filteredIndex].unread_count || 0) + 1
           };
 
-          // Move this chat to the top of the filtered list with deduplication
           const tempFilteredChats = [
             updatedFilteredChat,
             ...filteredChats.filter(c => c.id !== message.chat_id)
@@ -667,7 +607,6 @@
           filteredChats = deduplicateChats(tempFilteredChats);
         }
 
-        // Play notification sound if this is not the selected chat
         if (selectedChat?.id !== message.chat_id) {
           logger.debug("Would play notification sound for new message");
         }
@@ -677,7 +616,6 @@
     }
   }
 
-  // Helper function to send messages via WebSocket
   function sendWebSocketMessage(chatId: string, content: string) {
     const chatMessage: ChatMessage = {
       type: "text",
@@ -686,29 +624,24 @@
       user_id: $authStore.user_id || ""
     };
 
-    // Use any to bypass TypeScript type checking
     (websocketStore as any).sendMessage(chatId, chatMessage);
   }
 
-  // Mobile navigation handling
   function handleMobileNavigation(view: string): void {
     if (view === "back" || view === "showChats") {
       selectedChat = null;
     } else if (view === "showChat" && selectedChat) {
-      // Already handled
+
     }
   }
 
-  // Mobile menu toggle
   function toggleMobileMenu() {
     showMobileMenu = !showMobileMenu;
   }
 
-  // Helper functions
   function formatGroupChatForDisplay(apiChat: any): Chat {
     const avatar = null;
 
-    // Format to match our Chat type
     return {
       id: apiChat.id,
       type: apiChat.is_group_chat ? "group" : "individual",
@@ -747,11 +680,9 @@
     });
   }
 
-  // Function to deduplicate chats by ID and ensure unique entries
   function deduplicateChats(chatList: Chat[]): Chat[] {
     const chatMap = new Map<string, Chat>();
 
-    // Use Map to automatically deduplicate by chat ID
     chatList.forEach(chat => {
       if (chat && chat.id && !chatMap.has(chat.id)) {
         chatMap.set(chat.id, chat);
@@ -770,16 +701,16 @@
       const response = await getChatHistoryList();
 
       if (response && response.chats) {
-        // Process chats
+
         const processedChats = response.chats.map(chat => {
-          // Format the chat to match our Chat interface
+
           const chatObj: Chat = {
             id: chat.id,
             type: chat.is_group_chat ? "group" : "individual",
             name: chat.name || "",
             avatar: null,
             participants: (chat.participants || []).map(p => {
-              // Ensure we have proper participant data
+
               return {
                 id: p.id || p.user_id || "",
                 username: p.username || "",
@@ -795,7 +726,6 @@
             updated_at: chat.updated_at || new Date().toISOString()
           };
 
-          // Add last message if available
           if (chat.last_message) {
             chatObj.last_message = {
               content: chat.last_message.content || "",
@@ -807,10 +737,8 @@
 
           return chatObj;        });
 
-        // Deduplicate chats to prevent duplicates
         const uniqueChats = deduplicateChats(processedChats);
 
-        // Sort chats by update time, newest first
         uniqueChats.sort((a, b) => {
           const timeA = new Date(a.updated_at).getTime();
           const timeB = new Date(b.updated_at).getTime();
@@ -820,7 +748,6 @@
         chats = uniqueChats;
         filteredChats = [...uniqueChats];
 
-        // If no chat is selected yet and we have chats, select the first one
         if (!selectedChat && processedChats.length > 0) {
           selectChat(processedChats[0]);
         }
@@ -853,9 +780,6 @@
     return formatRelativeTime(stringTimestamp);
   }
 
-  /**
-   * Search for users to add to chats
-   */
   async function searchForUsers(query: string) {
     if (!query || query.length < 2) {
       userSearchResults = [];
@@ -876,26 +800,21 @@
     }
   }
 
-  /**
-   * Initialize a new chat with a user
-   */
   async function initiateNewChat(data: any) {
     try {
       isLoadingChats = true;
 
-      // Check if we received an object with chat data or just a user ID
       let chatData;
       if (typeof data === "string") {
-        // Handle legacy format (just user ID)
+
         chatData = {
           type: "individual",
           participants: [data]
         };
       } else if (typeof data === "object") {
-        // Use the object data directly, but ensure it uses the correct field name
+
         chatData = data;
 
-        // Convert participant_ids to participants if needed
         if (data.participant_ids && !data.participants) {
           chatData = {
             ...data,
@@ -911,7 +830,7 @@
 
       if (response && response.chat_id) {
         showNewChatModal = false;
-        await fetchChats(); // Use fetchChats instead of loadChats
+        await fetchChats(); 
         selectChat(response.chat_id);
       }
     } catch (error) {
@@ -922,12 +841,11 @@
   }
 
   function getUserDisplayName(userId: string): string {
-    // Check if this is the current user
+
     if (userId === $authStore.user_id) {
       return displayName || "You";
     }
 
-    // Check if the user is in the participants list of any chat
     for (const chat of chats) {
       const participant = chat.participants.find(p => p.id === userId);
       if (participant) {
@@ -935,7 +853,6 @@
       }
     }
 
-    // If we can't find the user, return a generic name with the ID
     const shortId = userId.substring(0, 4);
     return `User ${shortId}`;
   }
@@ -946,15 +863,13 @@
     return chat.participants.find(p => p.id !== $authStore.user_id);
   }
 
-  // Initialize connections when component mounts
   onMount(() => {
-    // Check viewport size
+
     checkViewport();
     window.addEventListener("resize", checkViewport);
 
-    // Function to initialize everything
     const initialize = async () => {
-    // Fetch user profile
+
     try {
       const profileData = await getProfile();
       if (profileData) {
@@ -968,54 +883,45 @@
       isLoadingProfile = false;
     }
 
-    // Load chats
     await fetchChats();
     };
 
-    // Start initialization
     initialize();
 
-    // Register WebSocket message handler
     const unregisterHandler = websocketStore.registerMessageHandler(handleWebSocketMessage);
 
-    // Also set the handler in the chatApi for backward compatibility
     setMessageHandler(handleWebSocketMessage);
 
     logger.info("Message component mounted");
 
-    // Return cleanup function
     return () => {
       if (unregisterHandler) unregisterHandler();
     };
   });
 
-  // Clean up when component unmounts
   onDestroy(() => {
     window.removeEventListener("resize", checkViewport);
     logger.info("Disconnecting from all WebSocket connections");
     websocketStore.disconnectAll();
   });
 
-  // Helper function to safely format timestamps
   function safeFormatRelativeTime(timestamp: string | Date | unknown): string {
     if (typeof timestamp === "string") {
       return formatRelativeTime(timestamp);
     } else if (timestamp instanceof Date) {
       return formatRelativeTime(timestamp.toISOString());
     } else {
-      // Default to current time if invalid
+
       return formatRelativeTime(new Date().toISOString());
     }
   }
 
-  // Chat interaction functions
   async function selectChat(chat: Chat | string) {
     let chatId: string;
 
-    // Handle both string ID and Chat object
     if (typeof chat === "string") {
       chatId = chat;
-      // Find the chat in our list
+
       const chatObj = chats.find(c => c.id === chatId);
       if (!chatObj) {
         logger.error(`Chat with ID ${chatId} not found in chats list`);
@@ -1032,7 +938,6 @@
 
     logger.info(`Selecting chat: ${chatId}`);
 
-    // Validate chat ID format
     if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
       logger.error(`Invalid chat ID format: ${chatId}`);
       toastStore.showToast({
@@ -1044,27 +949,24 @@
 
     selectedChat = { ...chat, messages: [] };
 
-    // On mobile, hide the chat list
     if (isMobile) {
       showMobileMenu = false;
       handleMobileNavigation("showChat");
     }
 
-    // Fetch messages for the selected chat
     isLoadingMessages = true;
     try {
       logger.debug(`Fetching messages for chat ${chatId}`);
       const response = await listMessages(chatId);
 
       if (response && response.messages) {
-        // Sort messages by timestamp to ensure correct order (newest last)
+
         const sortedMessages = [...response.messages].sort((a, b) => {
           const timeA = new Date(a.timestamp).getTime();
           const timeB = new Date(b.timestamp).getTime();
           return timeA - timeB;
         });
 
-        // Process messages to add any missing properties
         const processedMessages = sortedMessages.map(msg => ({
           ...msg,
           sender_name: msg.sender_name || "User",
@@ -1079,7 +981,6 @@
 
         logger.info(`Loaded ${processedMessages.length} messages for chat ${chatId}`);
 
-        // Scroll to bottom of messages
         setTimeout(() => {
           const messagesContainer = document.querySelector(".messages-container");
           if (messagesContainer) {
@@ -1104,9 +1005,8 @@
       isLoadingMessages = false;
     }
 
-    // Connect to WebSocket for this chat
     try {
-      // Check if already connected to this chat
+
       const isConnected = (websocketStore as any).isConnected(chatId);
       if (!isConnected) {
         logger.info(`Connecting to WebSocket for chat ${chatId}`);
@@ -1119,7 +1019,6 @@
       toastStore.showToast({ message: "Could not establish real-time connection", type: "warning" });
     }
 
-    // Mark chat as read by resetting unread count
     chats = chats.map(c => {
       if (c.id === chatId) {
         return { ...c, unread_count: 0 };
@@ -1127,13 +1026,12 @@
       return c;
     }) as Chat[];
 
-    // Fix the filtered chats assignment
     filteredChats = [
       ...(filteredChats.filter(c => c.id === chatId)),
       ...(filteredChats.filter(c => c.id !== chatId))
     ].map(chat => ({
       ...chat,
-      // Ensure that last_message.timestamp is always a string
+
       last_message: chat.last_message ? {
         ...chat.last_message,
         timestamp: typeof chat.last_message.timestamp === "string"
@@ -1144,26 +1042,24 @@
   }
 
   function getAvatarColor(name: string) {
-    // Simple hash function for consistent colors
+
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
 
-    // Convert to HSL with good saturation and lightness
     const h = Math.abs(hash) % 360;
     return `hsl(${h}, 70%, 60%)`;
   }
 
   function getChatDisplayName(chat: Chat) {
-    // Group chats should use their name
+
     if (chat.type === "group" && chat.name && chat.name.trim() !== "") {
       return chat.name;
     }
 
-    // For individual chats, show the other participant's name
     if (chat.participants && chat.participants.length > 0) {
-      // Use only id for filtering as that's in the Participant type
+
       const otherParticipants = chat.participants.filter(p => p.id !== $authStore.user_id);
 
       if (otherParticipants.length > 0) {
@@ -1172,7 +1068,6 @@
       }
     }
 
-    // Fallback to chat name or generic name
     return chat.name && chat.name.trim() !== "" ? chat.name : "Chat";
   }
 
@@ -1184,17 +1079,15 @@
 
     const query = searchQuery.toLowerCase().trim();
     filteredChats = chats.filter(chat => {
-      // Search in chat name
+
       const chatName = getChatDisplayName(chat).toLowerCase();
       if (chatName.includes(query)) return true;
 
-      // Search in last message
       if (chat.last_message && chat.last_message.content) {
         const messageContent = chat.last_message.content.toLowerCase();
         if (messageContent.includes(query)) return true;
       }
 
-      // Search in participants
       if (chat.participants) {
         for (const participant of chat.participants) {
           const name = participant.display_name || participant.username || "";
@@ -1206,21 +1099,18 @@
     });
   }
 
-  // Function to send a message
   async function sendMessage(content: string) {
     if (!content || !content.trim() || !selectedChat) {
       return;
     }
 
     try {
-      // Generate a unique temporary ID for this message
+
       const tempMessageId = `temp-${Date.now()}`;
 
-      // Trim content and prevent empty messages
       content = content.trim();
       newMessage = "";
 
-      // Create message object
       const message: Message = {
       id: tempMessageId,
         chat_id: selectedChat.id,
@@ -1235,13 +1125,11 @@
         is_local: true
       };
 
-      // Optimistically add message to UI
       selectedChat = {
         ...selectedChat,
         messages: [...selectedChat.messages, message]
       };
 
-      // Scroll to bottom after message is added
         setTimeout(() => {
           const messagesContainer = document.querySelector(".messages-container");
           if (messagesContainer) {
@@ -1249,7 +1137,6 @@
           }
       }, 50);
 
-      // Create a last message object for the chat list
       const newLastMessage: LastMessage = {
         content: content,
         timestamp: new Date().toISOString(),
@@ -1257,7 +1144,6 @@
         sender_name: displayName || "You"
       };
 
-      // Update chat list with the new message and ensure no duplicates
       chats = deduplicateChats(chats.map(chat => {
         if (chat.id === selectedChat?.id) {
           return {
@@ -1268,17 +1154,15 @@
           return chat;
       }) as Chat[]);
 
-      // Move the active chat to the top
       const activeChatId = selectedChat?.id;
       if (activeChatId) {
       const activeChat = chats.find(c => c.id === activeChatId);
       if (activeChat) {
-          // Remove the active chat from the array
+
           const otherChats = chats.filter(c => c.id !== activeChatId);
-          // Add it back at the beginning
+
           chats = [activeChat, ...otherChats];
 
-          // Do the same for filtered chats with deduplication
           const filteredActiveChat = filteredChats.find(c => c.id === activeChatId);
           if (filteredActiveChat) {
             const otherFilteredChats = filteredChats.filter(c => c.id !== activeChatId);
@@ -1293,16 +1177,14 @@
         }
       }
 
-      // Send the message to the API and WebSocket
       const messageData: Record<string, any> = {
-        content: content, // Use the parameter content, not newMessage
+        content: content, 
         sender_id: $authStore.user_id,
         attachment: selectedAttachments.length > 0 ? selectedAttachments[0] : null
       };
 
       logger.debug(`Sending message via API to chat ${selectedChat?.id}`);
 
-      // FIRST: Send via WebSocket for real-time delivery to other users
       const wsMessage = {
         type: "text" as MessageType,
         content: content,
@@ -1316,14 +1198,13 @@
       };
 
       try {
-        // Send via WebSocket first for real-time delivery
+
         websocketStore.sendMessage(selectedChat?.id || "", wsMessage);
         logger.debug(`Message sent via WebSocket to chat ${selectedChat?.id}`);
       } catch (wsError) {
         logWarn("Failed to send message via WebSocket, continuing with API", wsError);
       }
 
-      // SECOND: Send via API for database persistence
       try {
         const result = await sendMessageToApi(selectedChat?.id || "", messageData);
         logInfo("Message sent successfully via API");
@@ -1349,7 +1230,6 @@
           type: "error"
         });
 
-        // Remove the failed message from UI instead of marking as failed
         if (selectedChat) {
           selectedChat = {
             ...selectedChat,
@@ -1367,17 +1247,15 @@
     }
   }
 
-  // Fix unsendMessage function to ensure timestamps are always strings
   async function unsendMessage(messageId: string) {
-    // Logic to unsend/delete a message
+
     if (!selectedChat) return;
 
-    // Find the message
     const message = selectedChat.messages.find(m => m.id === messageId);
     if (!message || message.sender_id !== $authStore.user_id) return;
 
     try {
-      // Optimistically update UI
+
       selectedChat = {
         ...selectedChat,
         messages: selectedChat.messages.map(msg =>
@@ -1385,13 +1263,11 @@
         )
       };
 
-      // Call API to unsend
       await apiUnsendMessage(selectedChat.id, messageId);
 
-      // Update the chat if the deleted message was the last message
       const lastMessage = selectedChat.last_message;
       if (lastMessage && lastMessage.content === message.content) {
-        // Find the previous message to use as the new last message
+
         const previousMessages = selectedChat.messages
           .filter(m => !m.is_deleted && m.id !== messageId)
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -1399,7 +1275,7 @@
         const newLastMessage = previousMessages[0];
 
         if (newLastMessage) {
-          // Update the chat in the list
+
           chats = chats.map(chat => {
             if (chat.id === selectedChat?.id) {
               return {
@@ -1415,7 +1291,6 @@
             return chat;
           }) as Chat[];
 
-          // Also update filtered chats
           filteredChats = filteredChats.map(chat => {
             if (chat.id === selectedChat?.id) {
               return {
@@ -1437,9 +1312,8 @@
       logError("Failed to unsend message", errorMessage);
       toastStore.showToast({ message: `Failed to unsend message: ${errorMessage}`, type: "error" });
 
-      // Revert the optimistic update on error
       if (selectedChat) {
-        // Fetch the original message state to revert
+
         const originalMessage = selectedChat.messages.find(m => m.id === messageId);
         if (originalMessage) {
           selectedChat = {
@@ -1453,25 +1327,21 @@
     }
   }
 
-  /**
-   * Handle creating a group chat
-   */
   async function handleCreateGroupChat(data: any) {
     try {
       isLoadingChats = true;
 
-      // Handle different data formats from different sources
       let chatData: { type: string; name: string; participants: string[] };
 
       if (data && data.chat) {
-        // Handle format from onSuccess event: { chat: { ... } }
+
         chatData = {
           type: "group",
           name: data.chat.name || "New Group",
           participants: (data.chat.participants || []).map((p: any) => p.id || p)
         };
       } else if (data && data.name && data.participants) {
-        // Handle direct format: { name: string; participants: string[] }
+
         chatData = {
           type: "group",
           name: data.name,
@@ -1488,11 +1358,9 @@
         const newChatId = response.chat_id || response.chat?.id;
         showCreateGroupModal = false;
 
-        // Instead of refetching all chats, just reload them once with deduplication
         logger.debug("Group chat created successfully, refreshing chat list");
         await fetchChats();
 
-        // Select the new chat if we have its ID
         if (newChatId) {
           const newChat = chats.find(c => c.id === newChatId);
           if (newChat) {
@@ -1516,17 +1384,14 @@
     }
   }
 
-  // WebSocket connection management
   const handleReconnect = () => {
     console.log("[WebSocket] Attempting to reconnect...");
 
-    // Reconnect to the selected chat
     if (selectedChat) {
       console.log(`[WebSocket] Reconnecting to selected chat: ${selectedChat.id}`);
       websocketStore.connect(selectedChat.id);
 
-      // Reconnect to recent chats
-      const recentChats = chats.slice(0, 5); // Reconnect to 5 most recent chats
+      const recentChats = chats.slice(0, 5); 
       recentChats.forEach(chat => {
         if (selectedChat && chat.id !== selectedChat.id) {
           console.log(`[WebSocket] Reconnecting to additional chat: ${chat.id}`);
@@ -1534,7 +1399,7 @@
         }
       });
     } else {
-      // If no selected chat, just reconnect to recent chats
+
       const recentChats = chats.slice(0, 5);
       recentChats.forEach(chat => {
         console.log(`[WebSocket] Reconnecting to chat: ${chat.id}`);
@@ -1543,12 +1408,10 @@
     }
   };
 
-  // Function to test WebSocket connection
   const testWebSocketConnection = () => {
     if (selectedChat) {
       console.log(`[WebSocket] Testing connection for chat: ${selectedChat.id}`);
 
-      // Get the WebSocket URL
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const hostname = window.location.hostname;
       const port = "8083";
@@ -1559,9 +1422,8 @@
         return;
       }
 
-      // Test both URL formats to see which one works
-      const url1 = `${protocol}//${hostname}:${port}/api/v1/chats/${selectedChat.id}/ws?token=${encodeURIComponent(token)}`;
-      const url2 = `${protocol}//${hostname}:${port}/ws/chat/${selectedChat.id}?token=${encodeURIComponent(token)}`;
+      const url1 = `${protocol}
+      const url2 = `${protocol}
 
       console.log(`[WebSocket] Testing URL 1: ${url1}`);
       const ws1 = new WebSocket(url1);
@@ -1574,7 +1436,6 @@
       ws1.onerror = (error) => {
         console.error("[WebSocket] URL 1 connection failed:", error);
 
-        // Try the second URL format
         console.log(`[WebSocket] Testing URL 2: ${url2}`);
         const ws2 = new WebSocket(url2);
 
@@ -1591,7 +1452,6 @@
     }
   };
 
-  // Function to fetch messages for a chat
   async function fetchMessages(chatId: string) {
     if (!chatId) return;
 
@@ -1601,7 +1461,7 @@
       const response = await chatApi.listMessages(chatId);
 
       if (response && response.messages) {
-        // Update the selected chat with the messages
+
         if (selectedChat && selectedChat.id === chatId) {
           selectedChat = {
             ...selectedChat,
@@ -1616,36 +1476,30 @@
     }
   }
 
-  // Function to mark a chat as read
   async function markChatAsRead(chatId: string) {
     if (!chatId) return;
 
     try {
-      // Find the chat in our list
+
       const chatIndex = chats.findIndex(c => c.id === chatId);
       if (chatIndex >= 0) {
-        // Update the chat's unread count locally
+
         chats[chatIndex].unread_count = 0;
 
-        // Also update the filtered chats
         const filteredIndex = filteredChats.findIndex(c => c.id === chatId);
         if (filteredIndex >= 0) {
           filteredChats[filteredIndex].unread_count = 0;
         }
 
-        // Trigger a UI update
         chats = [...chats];
         filteredChats = [...filteredChats];
       }
 
-      // TODO: Implement API call to mark chat as read when endpoint is available
-      // For now, we're just updating the UI
     } catch (error) {
       logError("Failed to mark chat as read", error);
     }
   }
 
-  // Helper function to ensure we have valid arrays for chats and filteredChats
   function ensureValidChatArrays() {
     if (!Array.isArray(chats)) {
       chats = [];
@@ -1656,30 +1510,23 @@
     }
   }
 
-  // No longer used - functionality moved to requestDeleteChat
-
-  // Function to confirm and delete the chat
   async function confirmDeleteChat() {
     if (!chatToDelete) return;
 
     try {
       await deleteChat(chatToDelete.id);
 
-      // Update the chat lists
       chats = chats.filter(c => c.id !== chatToDelete?.id);
       filteredChats = filteredChats.filter(c => c.id !== chatToDelete?.id);
 
-      // If the deleted chat was selected, clear the selection
       if (selectedChat && selectedChat.id === chatToDelete.id) {
         selectedChat = null;
       }
 
-      // Select another chat if available
       if (!selectedChat && chats.length > 0) {
         selectChat(chats[0]);
       }
 
-      // Show success notification
       toastStore.showToast({
         message: "Conversation deleted successfully",
         type: "success"
@@ -1691,26 +1538,23 @@
         type: "error"
       });
     } finally {
-      // Reset state
+
       chatToDelete = null;
       showDeleteConfirm = false;
     }
   }
 
-  // Function to cancel deletion
   function cancelDeleteChat() {
     chatToDelete = null;
     showDeleteConfirm = false;
   }
 
-  // Function to request deletion of a chat
   function requestDeleteChat(chatToRemove: Chat) {
     chatToDelete = chatToRemove;
     showDeleteConfirm = true;
     logger.debug(`Preparing to delete chat: ${chatToRemove.id}`);
   }
 
-  // Use a properly typed function to avoid TypeScript error
   function showToast(options: { message: string; type: ToastTypeEnum }) {
     toastStore.showToast(options);
   }
@@ -1724,7 +1568,6 @@
     background-color: white;
   }
 
-  /* Middle section (chat list) */
   .middle-section {
     width: 35%;
     min-width: 320px;
@@ -1734,7 +1577,6 @@
     flex-direction: column;
   }
 
-  /* Dark mode */
   .message-container.dark-theme {
     background-color: #1a1a1a;
     color: #f0f0f0;
@@ -1770,9 +1612,6 @@
     background-color: #2a2a2a;
   }
 
-  /* These styles are now applied directly in the main dark-theme section */
-
-  /* Chat list header */
   .chat-list-header {
     padding: 16px;
     display: flex;
@@ -1781,7 +1620,6 @@
     border-bottom: 1px solid #e0e0e0;
   }
 
-  /* Search container */
   .msg-search-container {
     padding: 12px 16px;
     position: relative;
@@ -1806,7 +1644,6 @@
     color: #888;
   }
 
-  /* Chat list */
   .chat-list {
     flex: 1;
     overflow-y: auto;
@@ -1908,7 +1745,6 @@
     padding: 0 4px;
   }
 
-  /* Right section (chat content) */
   .right-section {
     flex: 1;
     display: flex;
@@ -1916,7 +1752,6 @@
     overflow: hidden;
   }
 
-  /* Chat header */
   .msg-chat-header {
     padding: 16px;
     display: flex;
@@ -1968,7 +1803,6 @@
     background-color: #333;
   }
 
-  /* Messages container */
   .messages-container {
     flex: 1;
     overflow-y: auto;
@@ -1982,7 +1816,6 @@
     background-color: #252525;
   }
 
-  /* Loading spinner */
   .loading-container {
     display: flex;
     flex-direction: column;
@@ -2012,7 +1845,6 @@
     }
   }
 
-  /* Message items */
   .msg-conversation-item {
     display: flex;
     margin-bottom: 16px;
@@ -2034,21 +1866,18 @@
     word-break: break-word;
   }
 
-  /* Sent messages (from the current user) */
   .message-bubble.sent {
     background-color: #3b82f6;
     color: white;
     border-bottom-right-radius: 4px;
   }
 
-  /* Received messages (from other users) */
   .message-bubble.received {
     background-color: #e9e9e9;
     color: #333;
     border-bottom-left-radius: 4px;
   }
 
-  /* Dark theme overrides */
   .dark-theme .message-bubble.sent {
     background-color: #3b82f6;
     color: white;
@@ -2059,7 +1888,6 @@
     color: #f0f0f0;
   }
 
-  /* Delete button and confirmation dialog styles */
   .chat-actions {
     display: flex;
     align-items: center;
@@ -2086,7 +1914,6 @@
     display: flex;
   }
 
-  /* Confirmation dialog */
   .confirmation-dialog {
     position: fixed;
     top: 0;
@@ -2149,14 +1976,10 @@
     background-color: #f5f5f5;
   }
 
-  /* Dark mode styles for dialog */
-  /* Moving these styles to be applied through the container class with dark-theme */
-
   .dark-theme .msg-clear-search {
     color: #bbb;
   }
 
-  /* Image and GIF attachment button styles */
   .image-button {
     padding: 0;
     margin: 0;
@@ -2178,7 +2001,6 @@
     display: block;
   }
 
-  /* Modal styles for group chat */
   .modal-backdrop {
     position: fixed;
     top: 0;
@@ -2474,7 +2296,7 @@
                   </svg>
                 </button>
               {/if}
-              <button class="msg-action-icon" on:click={() => {/* Implement options */}} aria-label="More options">
+              <button class="msg-action-icon" on:click={() => {}} aria-label="More options">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                 </svg>
@@ -2589,9 +2411,9 @@
                           <div class="message-error">
                             <span class="error-text">Not sent to server</span>
                             <button class="retry-btn" on:click={() => {
-                              // Copy message content back to input field
+
                               newMessage = message.content;
-                              // Remove the failed message
+
                               if (selectedChat?.messages) {
                                 selectedChat = {
                                   ...selectedChat,
@@ -2786,5 +2608,3 @@
     </div>
   </div>
 {/if}
-
-

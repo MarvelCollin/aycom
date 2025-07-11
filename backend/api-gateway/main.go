@@ -62,7 +62,6 @@ func main() {
 		log.Println("Redis client initialized successfully")
 	}
 
-	// Initialize RabbitMQ Event Publisher
 	rabbitMQURL := os.Getenv("RABBITMQ_URL")
 	if rabbitMQURL == "" {
 		rabbitMQURL = "amqp://guest:guest@rabbitmq:5672/"

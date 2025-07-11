@@ -37,4 +37,20 @@ build/
 tmp/
 temp/
 *.tmp
-*.bak 
+*.bak
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+ai-service/venv/
+ai-training/venv/
+**/.venv/
+**/env/
+**/pip-selfcheck.json
+**/*.egg-info/
+**/*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints 

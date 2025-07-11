@@ -6,7 +6,7 @@ const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix("AuthAPI");
 
 async function handleApiResponse(response: Response, errorMessage: string = "Operation failed") {
-  // For non-OK responses, always ensure we handle properly as an error
+  
   if (!response.ok) {
     logger.error(`Error status: ${response.status} ${response.statusText}`);
 
@@ -14,15 +14,15 @@ async function handleApiResponse(response: Response, errorMessage: string = "Ope
       const errorData = await response.json();
       logger.error("Error data:", errorData);
 
-      // Check for structured validation errors
+      
       let validationErrors = errorData.validation_errors || {};
 
-      // If we have fields in the error object, use them as validation errors
+      
       if (errorData.error && errorData.error.fields && Object.keys(errorData.error.fields).length > 0) {
         validationErrors = { ...validationErrors, ...errorData.error.fields };
       }
 
-      // Get error details from the response
+      
       const errorDetails = errorData.message ||
                         (errorData.error ? errorData.error.message : null) ||
                         errorMessage;
@@ -31,19 +31,19 @@ async function handleApiResponse(response: Response, errorMessage: string = "Ope
                      (errorData.error ? errorData.error.code : null) ||
                      "ERROR";
 
-      // If we have a string error message that contains validation info but no structured errors
+      
       if (typeof errorDetails === "string" &&
           Object.keys(validationErrors).length === 0 &&
           (errorDetails.includes("Validation failed:") || errorDetails.includes("Key:"))) {
 
-        // Extract individual validation errors
+        
         const validationMessages = errorDetails
           .replace("Validation failed: ", "")
           .split(";")
           .map(msg => msg.trim())
           .filter(msg => msg);
 
-        // Map common validation errors to fields
+        
         validationMessages.forEach(msg => {
           if (msg.toLowerCase().includes("name ")) validationErrors["name"] = msg;
           else if (msg.toLowerCase().includes("username ")) validationErrors["username"] = msg;
@@ -60,9 +60,9 @@ async function handleApiResponse(response: Response, errorMessage: string = "Ope
         });
       }
 
-      // Structured error response - ALWAYS use success: false for non-OK responses
+      
       return {
-        success: false, // Force this to false for non-OK responses
+        success: false, 
         error: {
           code: errorCode,
           message: errorDetails
@@ -71,7 +71,7 @@ async function handleApiResponse(response: Response, errorMessage: string = "Ope
       };
     } catch (parseError) {
       logger.error("Failed to parse error response:", parseError);
-      // Still return a structured error response even if we fail to parse
+      
       return {
         success: false,
         error: {
@@ -86,7 +86,7 @@ async function handleApiResponse(response: Response, errorMessage: string = "Ope
     const data = await response.json();
     logger.debug("Successful response with keys:", Object.keys(data));
 
-    // Add success flag if not present
+    
     if (data.success === undefined) {
       data.success = true;
     }
@@ -94,7 +94,7 @@ async function handleApiResponse(response: Response, errorMessage: string = "Ope
     return data;
   } catch (parseError) {
     logger.error("Failed to parse successful response:", parseError);
-    // If we can't parse the JSON, return a simple success object
+    
     return {
       success: true,
       message: "Operation completed successfully"
@@ -120,7 +120,7 @@ function standardizeUserResponse(data: any) {
     user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
   };
 
-  // Log token status
+  
   if (standardized.access_token) {
     const tokenPreview = standardized.access_token.substring(0, 10) + "..." +
       standardized.access_token.substring(standardized.access_token.length - 5);
@@ -179,7 +179,7 @@ export async function register(data: Record<string, any>) {
 
     const result = await handleApiResponse(response, "Registration failed");
 
-    // Make sure we explicitly check and set the success flag based on HTTP status
+    
     if (!response.ok && result.success === true) {
       logger.warn("Correcting inconsistent success flag: API reported success but HTTP status indicates failure");
       result.success = false;
@@ -251,7 +251,7 @@ export async function googleLogin(tokenId: string) {
     logger.info(`Google API response status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
-      // Try to get error details from response
+      
       try {
         const errorData = await response.json();
         logger.error("Google login error response:", errorData);
@@ -265,7 +265,7 @@ export async function googleLogin(tokenId: string) {
     const data = await handleApiResponse(response, "Google login failed");
     logger.info("Google login raw response keys:", Object.keys(data));
 
-    // Add success flag to ensure consistency with other auth responses
+    
     const standardizedData = {
       ...standardizeUserResponse(data),
       success: response.ok,

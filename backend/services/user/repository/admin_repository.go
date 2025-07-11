@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"aycom/backend/services/user/model"
-
 	"gorm.io/gorm"
+
+	"aycom/backend/services/user/model"
 )
 
 type AdminRepository struct {
@@ -26,7 +26,6 @@ func (r *AdminRepository) BanUser(userID string, ban bool) error {
 
 	log.Printf("BanUser: Attempting to set user %s ban status to %v", userID, ban)
 
-	// First check if the user exists
 	var user model.User
 	if err := r.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		log.Printf("BanUser: Error checking if user exists: %v", err)
@@ -35,7 +34,6 @@ func (r *AdminRepository) BanUser(userID string, ban bool) error {
 
 	log.Printf("BanUser: Found user %s (ID: %s) with current ban status: %v", user.Username, userID, user.IsBanned)
 
-	// Update the user's ban status
 	result := r.db.Model(&model.User{}).Where("id = ?", userID).Update("is_banned", ban)
 	if result.Error != nil {
 		log.Printf("BanUser: Database error updating ban status for user %s: %v", userID, result.Error)

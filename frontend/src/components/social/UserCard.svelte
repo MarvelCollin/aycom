@@ -8,7 +8,6 @@
   import type { IUser } from "../../interfaces/IUser";
   import type { IAuthStore } from "../../interfaces/IAuth";
 
-  // Icons
   import UserIcon from "svelte-feather-icons/src/icons/UserIcon.svelte";
   import CheckIcon from "svelte-feather-icons/src/icons/CheckIcon.svelte";
   import PlusIcon from "svelte-feather-icons/src/icons/PlusIcon.svelte";
@@ -17,7 +16,6 @@
   const logger = createLoggerWithPrefix("UserCard");
   const dispatch = createEventDispatcher();
 
-  // Theme and Auth
   const { theme } = useTheme();
   const { getAuthState } = useAuth();
   $: isDarkMode = $theme === "dark";
@@ -28,7 +26,6 @@
     refresh_token: null
   };
 
-  // Props - Accept either a full IUser object or the custom structure
   export let user: IUser | {
     id: string;
     name?: string;
@@ -44,10 +41,9 @@
     role?: string;
   };
 
-  // Optional props
   export let showFollowButton = true;
   export let compact = false;
-    // Computed values
+
   $: displayName = user.name || user.username || `User_${user.id.substring(0, 4)}`;
   $: username = user.username || `user_${user.id.substring(0, 4)}`;
   $: isFollowing = "isFollowing" in user ? user.isFollowing : ("is_following" in user ? user.is_following : false);
@@ -56,48 +52,40 @@
   $: avatarUrl = getProfilePictureUrl(user);
   $: isCurrentUser = authState.is_authenticated && authState.user_id === user.id;
 
-  // Function to get profile picture URL using Supabase
   function getProfilePictureUrl(user) {
-    // Check all possible avatar field names
+
     const rawUrl = user.avatar_url || user.profile_picture_url || user.avatar || "";
 
     if (!rawUrl) return "";
 
-    // If URL already contains supabase, it's already formatted
     if (rawUrl.includes("supabase")) {
       return rawUrl;
     }
 
-    // If it's a path starting with /, use it directly
     if (rawUrl.startsWith("/")) {
       return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles${rawUrl}`);
     }
 
-    // Extract filename and use it for Supabase path
     const parts = rawUrl.split("/");
     if (parts.length > 0) {
       const filename = parts[parts.length - 1];
       return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles/${filename}`);
     }
 
-    // Fallback to original URL
     return rawUrl;
   }
 
-  // Handle click on user card
   function handleCardClick() {
     dispatch("click", { userId: user.id });
     window.location.href = `/user/${user.id}`;
   }
 
-  // Handle follow/unfollow action
   async function handleFollowAction(event) {
     event.stopPropagation();
 
     try {
       isFollowing = !isFollowing;
 
-      // In a real app, make API call here
       logger.debug(`${isFollowing ? "Following" : "Unfollowing"} user ${user.id}`);
 
       dispatch("followChange", {
@@ -105,7 +93,7 @@
         isFollowing
       });
     } catch (error) {
-      // Revert state if error
+
       isFollowing = !isFollowing;
       logger.error(`Failed to ${isFollowing ? "follow" : "unfollow"} user:`, error);
     }
@@ -265,7 +253,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     line-height: 1.4;
-    /* Fallback for browsers that don't support line-clamp */
+
     max-height: calc(1.4em * 2);
   }
 

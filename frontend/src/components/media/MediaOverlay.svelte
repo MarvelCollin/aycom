@@ -34,7 +34,7 @@
     if (currentIndex > 0) {
       currentIndex = currentIndex - 1;
     } else {
-      currentIndex = mediaItems.length - 1; // Loop to last
+      currentIndex = mediaItems.length - 1; 
     }
     dispatch('navigate', { index: currentIndex });
   }
@@ -43,14 +43,14 @@
     if (currentIndex < mediaItems.length - 1) {
       currentIndex = currentIndex + 1;
     } else {
-      currentIndex = 0; // Loop to first
+      currentIndex = 0; 
     }
     dispatch('navigate', { index: currentIndex });
   }
 
   function handleKeydown(event: KeyboardEvent) {
     if (!isOpen) return;
-    
+
     switch (event.key) {
       case 'Escape':
         closeOverlay();
@@ -64,7 +64,6 @@
     }
   }
 
-  // Mock interaction handlers
   function handleLike() {
     console.log('Mock: Like interaction in media overlay');
     dispatch('like', { threadId: threadData?.id });
@@ -125,7 +124,7 @@
           </span>
         {/if}
       </div>
-      
+
       <div class="header-right">
         <button class="icon-btn" on:click={handleDownload} aria-label="Download media">
           <DownloadIcon size="20" />
@@ -208,17 +207,17 @@
           <HeartIcon size="20" />
           <span>Like</span>
         </button>
-        
+
         <button class="control-btn reply-btn" on:click={handleReply}>
           <MessageCircleIcon size="20" />
           <span>Reply</span>
         </button>
-        
+
         <button class="control-btn repost-btn" on:click={handleRepost}>
           <RepeatIcon size="20" />
           <span>Repost</span>
         </button>
-        
+
         <button class="control-btn bookmark-btn" on:click={handleBookmark}>
           <BookmarkIcon size="20" />
           <span>Bookmark</span>
@@ -465,7 +464,6 @@
     color: #f1c40f;
   }
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     .overlay-header {
       padding: 0.75rem;

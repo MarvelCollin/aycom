@@ -16,7 +16,6 @@
   import { formatTimeAgo } from "../utils/common";
   import { improvedSearchUsers } from "../api/userApi";
 
-  // Import newly created components
   import ExploreSearch from "../components/explore/ExploreSearch.svelte";
   import ExploreFilters from "../components/explore/ExploreFilters.svelte";
   import ExploreTrending from "../components/explore/ExploreTrending.svelte";
@@ -33,23 +32,19 @@
 
   const logger = createLoggerWithPrefix("Explore");
 
-  // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
 
-  // Reactive declarations
   $: authState = getAuthState ? getAuthState() : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === "dark";
   $: sidebarUsername = authState?.user_id ? `User_${authState.user_id.substring(0, 4)}` : "";
   $: sidebarDisplayName = authState?.user_id ? `User ${authState.user_id.substring(0, 4)}` : "";
-  $: sidebarAvatar = "https://secure.gravatar.com/avatar/0?d=mp"; // Default avatar with proper image URL
+  $: sidebarAvatar = "https://secure.gravatar.com/avatar/0?d=mp"; 
 
-  // Trends data
   let trends: ITrend[] = [];
   let isTrendsLoading = true;
   const suggestedFollows = [];
 
-  // All Users
   const allUsers: Array<{
     id: string;
     username: string;
@@ -62,7 +57,6 @@
   }> = [];
   const isLoadingAllUsers = false;
 
-  // Search state
   let searchQuery = "";
   let isSearching = false;
   let recentSearches: string[] = [];
@@ -71,7 +65,6 @@
   let showRecentSearches = false;
   let isLoadingRecommendations = false;
 
-  // Results state
   let searchResults: {
     top: {
       profiles: Array<{
@@ -197,10 +190,8 @@
     }
   };
 
-  // Has user performed a search?
   let hasSearched = false;
 
-  // Store users fetched when the page loads
   let usersToDisplay: Array<{
     id: string;
     username: string;
@@ -214,7 +205,6 @@
   }> = [];
   let isLoadingUsers = false;
 
-  // Thread categories
   type ThreadCategory = {
     id: string;
     label: string;
@@ -234,14 +224,12 @@
 
   let selectedCategory = "all";
 
-  // Pagination options for People and Communities tabs
   let peoplePerPage = 25;
   let peopleCurrentPage = 1;
   let communitiesPerPage = 25;
   let communitiesCurrentPage = 1;
-  let mediaPage = 1; // Media infinite scroll page
+  let mediaPage = 1; 
 
-  // State variables for communities display
   let communitiesToDisplay: Array<{
     id: string;
     name: string;
@@ -254,7 +242,6 @@
   let isLoadingCommunities = false;
   let defaultActiveTab: "trending" | "media" | "people" | "communities" | "latest" = "trending";
 
-  // Authentication check - Updated to fix auth issue
   function checkAuth() {
     if (!authState || !authState.is_authenticated) {
       logger.error("User not authenticated, redirecting to login");
@@ -268,7 +255,6 @@
     return true;
   }
 
-  // Fetch all users when "Everyone" filter is selected
   async function fetchAllUsers() {
     isLoadingUsers = true;
     try {
@@ -278,7 +264,7 @@
       const users = response.users || [];
 
       if (users && users.length > 0) {
-        // Map backend response to the format expected by the frontend components
+
         usersToDisplay = users.map(user => ({
           id: user.id,
           username: user.username,
@@ -305,7 +291,6 @@
     }
   }
 
-  // Load recent searches from localStorage
   function loadRecentSearches() {
     try {
       const savedSearches = localStorage.getItem("recentSearches");
@@ -318,30 +303,26 @@
     }
   }
 
-  // Save a search to recent searches
   function saveToRecentSearches(query: string) {
     if (!query.trim()) return;
 
     try {
-      // Remove if it already exists (to avoid duplicates)
+
       const filteredSearches = recentSearches.filter(s => s !== query);
 
-      // Add to beginning of array
       const updatedSearches = [query, ...filteredSearches].slice(0, 3);
       recentSearches = updatedSearches;
 
-      // Save to localStorage
       localStorage.setItem("recentSearches", JSON.stringify(updatedSearches));
     } catch (error) {
       console.error("Error saving recent search:", error);
     }
   }
 
-  // Load trending hashtags
   async function fetchTrends() {
     isTrendsLoading = true;
     try {
-      const trendData = await getTrends(10); // Explicitly get top 10 trending hashtags
+      const trendData = await getTrends(10); 
       trends = trendData;
       logger.debug("Trends loaded", { trendsCount: trends.length });
     } catch (error) {
@@ -353,7 +334,6 @@
     }
   }
 
-  // Search for recommended profiles - with debounce from lodash-es
   const debouncedSearchProfiles = debounce(async (query: string) => {
     console.log("Running debouncedSearchProfiles with query:", query);
 
@@ -364,16 +344,14 @@
       return;
     }
 
-    // Set loading state
     searchResults.top.isLoading = true;
     isLoadingRecommendations = true;
 
     try {
       console.log("Fetching user profiles for:", query);
 
-      // Fetch more profiles (increase limit from 10 to 15)
       const { users } = await searchUsers(query.trim(), 1, 15, {
-        sort: "follower_count" // Sort by follower count
+        sort: "follower_count" 
       });
 
       console.log("Recommended profiles API response:", users);
@@ -382,7 +360,7 @@
         console.log("No profiles found for query:", query);
         searchResults.top.profiles = [];
       } else {
-        // Show more recommended profiles (up to 6 instead of 3)
+
         searchResults.top.profiles = users.slice(0, 6).map(user => ({
         id: user.id,
         username: user.username,
@@ -394,15 +372,12 @@
         isFollowing: user.is_following || false
       }));
 
-        // Log the profiles being displayed
         console.log("Displaying recommended profiles:", searchResults.top.profiles);
       }
 
-      // Ensure we have search mode and top tab active to see recommendations
       isSearching = true;
       hasSearched = true;
 
-      // Force UI update
       searchResults = { ...searchResults };
 
     } catch (error) {
@@ -415,27 +390,22 @@
     }
   }, 300);
 
-  // Handle search input with debounce for recommendations
   function handleSearchInput(event) {
     const query = event.detail;
     searchQuery = query;
     console.log("Search input changed:", query);
 
-    // Always show search mode when typing
     if (query && query.length > 1) {
       isSearching = true;
       hasSearched = true;
 
-      // Make sure we're on the trending tab to see recommendations
       activeTab = "trending";
 
-      // Start loading state to show something is happening
       searchResults.top.isLoading = true;
 
-      // Trigger the debounced search for profiles
       debouncedSearchProfiles(query);
     } else {
-      // If search is cleared, reset to non-search mode
+
       if (!query || query.length === 0) {
         isSearching = false;
         hasSearched = false;
@@ -446,49 +416,43 @@
     logger.debug("Search input updated", { searchQuery });
   }
 
-  // Handle search from search component
   function handleSearch(event) {
-    // If we're on the communities tab in non-search mode, start with the communities tab
+
     if (!hasSearched && defaultActiveTab === "communities") {
       activeTab = "communities";
     } else {
-      // Default to trending tab for consistency
+
       activeTab = "trending";
     }
     executeSearch();
   }
 
-  // Handle clear search input
   function handleClearSearch() {
     searchQuery = "";
     hasSearched = false;
     isSearching = false;
-    showRecentSearches = false; // Make sure no dropdowns are shown
-    activeTab = "trending"; // Return to trending view
+    showRecentSearches = false; 
+    activeTab = "trending"; 
   }
 
-  // Handle toggle follow for a user
   function handleToggleFollow(userId) {
-    // Find the user in usersToDisplay
+
     const userIndex = usersToDisplay.findIndex(user => user.id === userId);
     if (userIndex !== -1) {
-      // Toggle the following state
+
       const user = usersToDisplay[userIndex];
       const updatedUser = {...user, isFollowing: !user.isFollowing};
 
-      // Update the array
       usersToDisplay = [
         ...usersToDisplay.slice(0, userIndex),
         updatedUser,
         ...usersToDisplay.slice(userIndex + 1)
       ];
 
-      // Call the API in the background
       handleFollowUser({ detail: userId });
     }
   }
 
-  // Main search function
   async function executeSearch() {
     if (!searchQuery || searchQuery.length < 2) {
       hasSearched = false;
@@ -496,16 +460,13 @@
       return;
     }
 
-    // Save to recent searches
     saveToRecentSearches(searchQuery);
 
-    // Enter search mode and show trending results by default
     isSearching = true;
     hasSearched = true;
-    showRecentSearches = false; // Ensure dropdowns are hidden
-    activeTab = "trending"; // Always default to trending tab for consistency
+    showRecentSearches = false; 
+    activeTab = "trending"; 
 
-    // Set all result sections to loading
     searchResults.top.isLoading = true;
     searchResults.latest.isLoading = true;
     searchResults.people.isLoading = true;
@@ -524,12 +485,10 @@
         fuzzyThreshold: "0.3 (modified for better matching)"
       });
 
-      // Safely execute each API call with error handling
       const safeApiCall = async (apiFunction, ...args) => {
         try {
           const result = await apiFunction(...args);
 
-          // Check if the result is null or undefined
           if (result === null || result === undefined) {
             logger.warn(`API call ${apiFunction.name} returned null or undefined`);
             return getDefaultResultForFunction(apiFunction.name);
@@ -538,12 +497,11 @@
           return result;
         } catch (error) {
           logger.error(`Error in API call ${apiFunction.name}:`, error);
-          // Return a safe default value based on expected structure
+
           return getDefaultResultForFunction(apiFunction.name);
         }
       };
 
-      // Helper function to get default results for different API functions
       function getDefaultResultForFunction(functionName) {
         switch(functionName) {
           case "searchUsers":
@@ -567,51 +525,43 @@
         }
       }
 
-      // Fetch data for all tabs in parallel with error handling
       const [peopleData, topThreadsData, latestThreadsData, mediaData, communitiesData] = await Promise.all([
-        // People tab data (also used for top profiles)
+
         safeApiCall(improvedSearchUsers, searchQuery, filterOption, 1, peoplePerPage),
 
-        // Top threads
         safeApiCall(searchThreads, searchQuery, 1, 10, {
           filter: filterOption,
           category: categoryOption,
           sort_by: "popular"
         }),
 
-        // Latest threads
         safeApiCall(searchThreads, searchQuery, 1, 20, {
           filter: filterOption,
           category: categoryOption,
           sort_by: "recent"
         }),
 
-        // Media tab data
         safeApiCall(searchThreadsWithMedia, searchQuery, 1, 12, {
           filter: filterOption,
           category: categoryOption
         }),
 
-        // Communities tab data
         safeApiCall(searchCommunities, searchQuery, 1, communitiesPerPage)
       ]);
 
-      // Process people results
       console.log("Raw people data:", peopleData);
 
-      // Add safety check to ensure peopleData has the expected structure
       let processedPeopleData = peopleData;
       if (!processedPeopleData || typeof processedPeopleData !== "object") {
         console.error("Invalid people data received:", processedPeopleData);
         processedPeopleData = { data: { users: [], pagination: { total_count: 0 } } };
       }
 
-      // Extract users from the correct location in the response
       const peopleDataUsers = processedPeopleData.data?.users || processedPeopleData.users || [];
       const totalPeopleCount = processedPeopleData.data?.pagination?.total_count || processedPeopleData.totalCount || processedPeopleData.total || 0;
 
       const peopleUsers = peopleDataUsers.map(user => {
-        // Log each user for debugging
+
         console.log("Processing user:", user);
 
         if (!user || typeof user !== "object") {
@@ -627,20 +577,18 @@
           bio: user.bio || "",
           isVerified: user.is_verified || false,
           followerCount: user.follower_count || 0,
-          isFollowing: false // Default to false since IUserProfile doesn't have is_following
+          isFollowing: false 
         };
-      }).filter(user => user !== null); // Filter out any null entries from invalid data
+      }).filter(user => user !== null); 
 
       console.log("Mapped people users:", peopleUsers);
 
-      // Helper function to calculate a simple string similarity
       function calculateSimpleStringSimilarity(a: string, b: string): number {
-        // Simple substring check
+
         if (a.includes(b) || b.includes(a)) {
-          return 0.8; // High match for substring
+          return 0.8; 
         }
 
-        // Check for common prefix
         let commonPrefix = 0;
         const minLength = Math.min(a.length, b.length);
         for (let i = 0; i < minLength; i++) {
@@ -651,11 +599,9 @@
           }
         }
 
-        // Return a score based on common prefix length
         return commonPrefix > 0 ? commonPrefix / Math.max(a.length, b.length) : 0.3;
       }
 
-      // Process top threads results
       const topThreads = (topThreadsData.threads || []).map(thread => ({
         id: thread.id,
         content: thread.content,
@@ -669,22 +615,18 @@
         profile_picture_url: thread.author?.avatar
       }));
 
-      // Get top 3 profiles sorted by follower count for the Trending tab
       const topProfiles = [...peopleUsers]
         .sort((a, b) => ((b.follower_count || 0) - (a.follower_count || 0)))
         .slice(0, 3);
 
-      // Process communities data
       console.log("Raw communities data:", communitiesData);
 
-      // Add safety check to ensure communitiesData has the expected structure
       let processedCommunitiesData = communitiesData;
       if (!processedCommunitiesData || typeof processedCommunitiesData !== "object") {
         console.error("Invalid communities data received:", processedCommunitiesData);
         processedCommunitiesData = { communities: [], total_count: 0 };
       }
 
-      // Process community items to ensure proper format
       const normalizedCommunities = (processedCommunitiesData.communities || []).map(community => {
         if (!community || typeof community !== "object") {
           console.error("Invalid community object:", community);
@@ -702,7 +644,6 @@
         };
       }).filter(community => community !== null);
 
-      // Update search results
       searchResults = {
         top: {
           profiles: topProfiles,
@@ -747,7 +688,6 @@
         }
       };
 
-      // Update the usersToDisplay for the People tab
       usersToDisplay = peopleUsers;
 
       logger.debug("Search completed", {
@@ -767,68 +707,60 @@
     }
   }
 
-  // Handle search focus
   function handleSearchFocus() {
     showRecentSearches = true;
     logger.debug("Search focused");
   }
 
-  // Handle selection of a recent search
   function handleRecentSearchSelect(event) {
     searchQuery = event.detail;
     logger.debug("Recent search selected", { searchQuery });
     executeSearch();
   }
 
-  // Clear recent searches
   function clearRecentSearches() {
     recentSearches = [];
     localStorage.removeItem("recentSearches");
     logger.debug("Recent searches cleared");
   }
 
-  // Handle filter change
   function handleFilterChange(event) {
     const newFilter = event.detail;
     logger.debug("Filter changed", { from: searchFilter, to: newFilter });
     console.log("Filter changed from", searchFilter, "to", newFilter);
 
-    // Update filter state
     searchFilter = newFilter;
 
-    // Handle based on current state
     if (hasSearched && searchQuery.trim() !== "") {
-      // If user has already searched, immediately re-execute with new filter
+
       console.log("In search mode, re-executing search with new filter");
       executeSearch();
     } else {
-      // If not in search results view, fetch data based on selected filter and active tab
+
       console.log("Not in search mode, fetching data for filter:", newFilter, "and tab:", defaultActiveTab);
       if (defaultActiveTab === "people") {
         isLoadingUsers = true;
         if (searchFilter === "all") {
-          // Fetch all users if filter is set to "Everyone"
+
           console.log("Fetching all users");
           fetchAllUsers();
         } else if (searchFilter === "following") {
-          // Fetch followed users if filter is set to "Following"
+
           console.log("Fetching followed users");
           fetchFollowedUsers();
         } else if (searchFilter === "verified") {
-          // Fetch verified users if filter is set to "Verified"
+
           console.log("Fetching verified users");
           fetchVerifiedUsers();
         }
       } else if (defaultActiveTab === "communities") {
         isLoadingCommunities = true;
-        // For communities, we currently only support fetching all communities
-        // In a production app, you would implement filter options for communities too
+
         fetchAllCommunities();
       }
     }
   }
 
-  // Fetch followed users for the "following" filter when no search has been done
   async function fetchFollowedUsers() {
     if (!authState.is_authenticated) {
       toastStore.showToast("You need to be logged in to view followed users", "warning");
@@ -837,15 +769,13 @@
 
     isLoadingUsers = true;
     try {
-      // Get the current user's ID
+
       const userId = authState.user_id;
       console.log("Fetching following users for:", userId);
 
-      // Use getFollowing API instead of searchUsers for the following filter
       const response = await getFollowing(userId || "", 1, 20);
       console.log("Following API response:", response);
 
-      // Define type for user objects
       interface UserObject {
         id: string;
         username: string;
@@ -861,7 +791,6 @@
 
       let followingUsers: UserObject[] = [];
 
-      // Handle different response structures
       if (response.data && response.data.following) {
         followingUsers = response.data.following as UserObject[];
       } else if (response.following) {
@@ -889,31 +818,28 @@
     }
   }
 
-  // Fetch verified users for the "verified" filter when no search has been done
   async function fetchVerifiedUsers() {
     isLoadingUsers = true;
     try {
       console.log("Fetching verified users...");
 
-      // Instead of using searchUsers, use getAllUsers and then filter for verified users
       const response = await getAllUsers(1, 50, "created_at", false);
       console.log("All users response for verified filtering:", response);
 
-      // Extract users and filter for only verified ones
       const allUsers = response.users || [];
       const verifiedUsers = allUsers.filter(user => user.is_verified === true);
 
       console.log("Filtered verified users:", verifiedUsers);
 
       if (verifiedUsers.length > 0) {
-        // Map backend response to the format expected by the frontend components
+
         usersToDisplay = verifiedUsers.map(user => ({
           id: user.id,
           username: user.username,
           displayName: user.name || user.display_name || user.username,
           avatar: user.profile_picture_url || user.avatar || null,
           bio: user.bio || "",
-          isVerified: true, // We know these users are verified
+          isVerified: true, 
           followerCount: user.follower_count || 0,
           isFollowing: user.is_following || false
         }));
@@ -924,7 +850,6 @@
         console.log("No verified users found");
         usersToDisplay = [];
 
-        // If no verified users found through filtering, try the searchUsers approach as backup
         try {
           const searchResponse = await searchUsers("", 1, 20, { filter: "verified" });
           console.log("Search API verified users response:", searchResponse);
@@ -955,7 +880,6 @@
     }
   }
 
-  // Handle category change
   function handleCategoryChange(event) {
     const category = event.detail;
     selectedCategory = category;
@@ -965,36 +889,30 @@
     }
   }
 
-  // Handle tab change
   function handleTabChange(event) {
     activeTab = event.detail;
     logger.debug("Tab changed", { tab: activeTab });
 
-    // If this is a communities or people tab, also update the default tab
-    // so when exiting search mode, we're on the right tab
     if (activeTab === "communities" || activeTab === "people") {
       defaultActiveTab = activeTab;
     }
   }
 
-  // Handle clicking on a trending hashtag
   async function handleHashtagClick(event) {
     const hashtag = event.detail;
     logger.debug("Hashtag clicked", { hashtag });
 
-    // Change to search mode
     isSearching = true;
     hasSearched = true;
-    activeTab = "latest";  // Default to showing latest threads for this hashtag
+    activeTab = "latest";  
     searchQuery = hashtag;
 
-    // Get threads for this hashtag sorted by likes
     const hashtagThreadsData = await getThreadsByHashtag(hashtag, 1, 20);
 
     if (hashtagThreadsData?.threads) {
-      // Update latest tab with these threads
+
       searchResults.latest.threads = (hashtagThreadsData?.threads || []).map(thread => {
-        // Safely handle the timestamp/created_at date
+
         let timestamp;
         try {
           const date = new Date(thread.created_at || thread.timestamp || new Date());
@@ -1018,9 +936,8 @@
         };
       });
 
-      // Also update top tab
       searchResults.top.threads = (hashtagThreadsData?.threads || []).map(thread => {
-        // Safely handle the created_at date
+
         let created_at;
         try {
           const date = new Date(thread.created_at || thread.timestamp || new Date());
@@ -1049,7 +966,6 @@
     }
   }
 
-  // Pagination for people tab
   async function handlePeoplePageChange(event) {
     const page = event.detail;
     peopleCurrentPage = page;
@@ -1064,14 +980,12 @@
 
       console.log("People pagination response:", response);
 
-      // Process the search results
       if (response && response.success) {
-        // Update people results
+
         const peopleResults = response.data?.users || [];
         const peopleCount = peopleResults.length;
         const totalPeopleCount = response.data?.pagination?.total_count || 0;
 
-        // Set the people data for display
         searchResults.people.users = peopleResults.map(user => ({
           id: user.id || "",
           username: user.username || "",
@@ -1080,10 +994,9 @@
           bio: user.bio || "",
           isVerified: user.is_verified || false,
           followerCount: user.follower_count || 0,
-          isFollowing: false // Default to false since IUserProfile doesn't have is_following
+          isFollowing: false 
         }));
 
-        // Update pagination for people tab
         searchResults.people.pagination = {
           current_page: page,
           total_pages: response.data?.pagination?.total_pages || 1,
@@ -1091,12 +1004,10 @@
           per_page: peoplePerPage
         };
 
-        // Also update isLoading state
         searchResults.people.isLoading = false;
 
         logger.debug(`Found ${peopleCount} people, total: ${totalPeopleCount}`);
 
-        // Also update the main users display array
         usersToDisplay = searchResults.people.users;
 
         console.log(`Updated people results: ${peopleCount} users, total: ${totalPeopleCount}`);
@@ -1108,7 +1019,6 @@
     }
   }
 
-  // Change people results per page
   function handlePeoplePerPageChange(event) {
     peoplePerPage = event.detail;
     searchResults.people.isLoading = true;
@@ -1116,7 +1026,6 @@
     executeSearch();
   }
 
-  // Pagination for communities tab
   async function handleCommunitiesPageChange(event) {
     const page = event.detail;
     communitiesCurrentPage = page;
@@ -1126,19 +1035,18 @@
       const response = await searchCommunities(searchQuery, page, communitiesPerPage);
       const communities = response.communities || [];
 
-      // Safely extract the total count
       let totalCount = 0;
-      // @ts-ignore - Handle dynamic response format
+
       if (response.total_count !== undefined) {
-        // @ts-ignore
+
         totalCount = response.total_count;
-      // @ts-ignore
+
       } else if (response.total !== undefined) {
-        // @ts-ignore
+
         totalCount = response.total;
-      // @ts-ignore
+
       } else if (response.pagination && response.pagination.total_count !== undefined) {
-        // @ts-ignore
+
         totalCount = response.pagination.total_count;
       }
 
@@ -1154,7 +1062,6 @@
     }
   }
 
-  // Change communities results per page
   function handleCommunitiesPerPageChange(event) {
     communitiesPerPage = event.detail;
     searchResults.communities.isLoading = true;
@@ -1162,7 +1069,6 @@
     executeSearch();
   }
 
-  // Load more media (for infinite scroll)
   async function loadMoreMedia() {
     if (searchResults.media.isLoading) return;
 
@@ -1178,7 +1084,6 @@
         category: categoryOption
       });
 
-      // Append new media to existing results
       searchResults.media = {
         threads: [...searchResults.media.threads, ...(data.threads || [])],
         totalCount: data.total_count || data.total || searchResults.media.totalCount || 0,
@@ -1191,32 +1096,27 @@
     }
   }
 
-  // Handle follow user
   function handleFollowUser(event) {
     const userId = event.detail;
     logger.debug("Follow user requested", { userId });
-    // Implement follow user logic here if needed
-    // For now, just log the action
+
     toastStore.showToast("Follow feature will be implemented soon", "info");
   }
 
-  // Handle profile click
   function handleProfileClick(event) {
     const userId = event.detail;
     logger.debug("Profile clicked", { userId });
-    // Navigate to user profile
+
     window.location.href = `/user/${userId}`;
   }
 
-  // Handle join community
   function handleJoinCommunity(event) {
     const { communityId } = event.detail;
     logger.debug("Join community requested", { communityId });
-    // Implement join community logic here
+
     toastStore.showToast("Join community feature will be implemented soon", "info");
   }
 
-  // Fetch all communities when "Everyone" filter is selected
   async function fetchAllCommunities() {
     isLoadingCommunities = true;
     try {
@@ -1232,16 +1132,16 @@
       const communities = response.communities || [];
 
       if (communities && communities.length > 0) {
-        // Map backend response to the format expected by the frontend components
+
         communitiesToDisplay = communities.map(community => ({
           id: community.id || "",
           name: community.name || "",
           description: community.description || "",
           logo: community.logo_url || null,
           member_count: community.member_count || 0,
-          // These properties might not exist in the getCommunities response
-          is_joined: false, // Default to false since we can't know from getCommunities
-          is_pending: false // Default to false since we can't know from getCommunities
+
+          is_joined: false, 
+          is_pending: false 
         }));
 
         console.log("Mapped communities for display:", communitiesToDisplay);
@@ -1259,24 +1159,22 @@
     }
   }
 
-  // Handle tab change for default view
   function handleDefaultTabChange(newTab: "trending" | "media" | "people" | "communities" | "latest") {
     defaultActiveTab = newTab;
     logger.debug("Default tab changed", { tab: defaultActiveTab });
 
-    // Load data for the selected tab if needed
     if (defaultActiveTab === "trending" && trends.length === 0 && !isTrendsLoading) {
-      // If there are no trends, fetch them
+
       fetchTrends();
     } else if (defaultActiveTab === "communities" && communitiesToDisplay.length === 0 && !isLoadingCommunities) {
       fetchAllCommunities();
     } else if (defaultActiveTab === "people" && usersToDisplay.length === 0 && !isLoadingUsers) {
       fetchAllUsers();
     } else if (defaultActiveTab === "media" && searchResults.media.threads.length === 0 && !searchResults.media.isLoading) {
-      // Optionally load media content
+
       console.log("Media tab selected, could load media content here");
     } else if (defaultActiveTab === "latest" && searchResults.latest.threads.length === 0 && !searchResults.latest.isLoading) {
-      // Optionally load latest content
+
       console.log("Latest tab selected, could load latest content here");
     }
   }
@@ -1284,18 +1182,14 @@
   onMount(async () => {
     logger.debug("Explore component mounted");
 
-    // Load recent searches from localStorage
     loadRecentSearches();
 
-    // Load trending hashtags
     await fetchTrends();
 
-    // If authenticated, fetch all users
     if (checkAuth()) {
       await fetchAllUsers();
     }
 
-    // Show trending tab by default when no search is active
     if (!hasSearched) {
       activeTab = "trending";
     }
@@ -1329,7 +1223,7 @@
           on:clearRecentSearches={clearRecentSearches}
           on:clearSearch={handleClearSearch}
           on:enterPressed={() => {
-            // Force search mode to hide dropdown suggestions
+
             isSearching = true;
             hasSearched = true;
           }}
@@ -1621,7 +1515,7 @@
 <Toast />
 
 <style>
-  /* Modern Explore page styles */
+
   .explore-page-content {
     width: 100%;
     background-color: var(--bg-primary);
@@ -1634,7 +1528,6 @@
     color: var(--dark-text-primary);
   }
 
-  /* Modern header styles */
   .page-header {
     padding: 8px 16px;
     position: sticky;
@@ -1657,7 +1550,6 @@
     margin: 0 auto;
   }
 
-  /* Modern filter container with pills */
   .filter-container {
     padding: 12px 16px;
     display: flex;
@@ -1754,7 +1646,6 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b98a5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   }
 
-  /* Modern tabs container */
   .tabs-container {
     position: sticky;
     top: 60px;
@@ -1848,7 +1739,6 @@
     border-color: var(--dark-border-color);
   }
 
-  /* Responsive adjustments */
   @media (max-width: 768px) {
     .filter-container {
       flex-direction: column;

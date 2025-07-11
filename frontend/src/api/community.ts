@@ -31,7 +31,7 @@ interface CommunitiesParams {
   [key: string]: any;
 }
 
-// Helper function to clean empty values from parameters
+
 function cleanParams(params: CommunitiesParams): CommunitiesParams {
   const cleaned: CommunitiesParams = {};
   
@@ -56,7 +56,7 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
     const token = getAuthToken();
     console.log(`Getting user communities with token: ${token ? "present" : "missing"}`);
 
-    // Clean parameters to remove empty values
+    
     const cleanedParams = cleanParams(params);
 
     const queryParams = new URLSearchParams();
@@ -169,7 +169,7 @@ export async function getCommunities(params: CommunitiesParams = {}) {
     const token = getAuthToken();
     console.log(`Getting communities with token: ${token ? "present" : "missing"}`);
 
-    // Clean parameters to remove empty values
+    
     const cleanedParams = cleanParams(params);
     
     const queryParams = new URLSearchParams();
@@ -1169,7 +1169,7 @@ export async function searchCommunities(
     if (options && typeof options === "object") {
       Object.entries(options).forEach(([key, value]) => {
         if (key === 'categories' && Array.isArray(value)) {
-          // Filter out empty categories
+          
           const validCategories = value.filter(cat => cat && cat.trim());
           validCategories.forEach(cat => params.append("category", cat));
         } else if (value !== undefined && value !== null && value !== '') {
@@ -1338,7 +1338,7 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
       const result = await response.json();
       console.log("Joined communities raw response:", result);
 
-      // Return the entire response structure directly
+      
       return result;
     }
 
@@ -1428,7 +1428,7 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
       const result = await response.json();
       console.log("Pending communities raw response:", result);
 
-      // Return the entire response structure directly
+      
       return result;
     }
 
@@ -1523,7 +1523,7 @@ export async function getDiscoverCommunities(userId: string, params: Communities
       const result = await response.json();
       console.log("Discover communities raw response:", result);
 
-      // Return the entire response structure directly
+      
       return result;
     }
 

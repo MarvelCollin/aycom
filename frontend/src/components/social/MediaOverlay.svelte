@@ -41,12 +41,10 @@
 
   const dispatch = createEventDispatcher();
 
-  // Reactive variables
   $: currentMedia = mediaItems[currentIndex] || null;
   $: hasPrevious = currentIndex > 0;
   $: hasNext = currentIndex < mediaItems.length - 1;
 
-  // Navigation functions
   function goToPrevious() {
     if (hasPrevious) {
       currentIndex = currentIndex - 1;
@@ -63,7 +61,6 @@
     dispatch('close');
   }
 
-  // Handle keyboard navigation
   function handleKeydown(event: KeyboardEvent) {
     switch (event.key) {
       case 'Escape':
@@ -78,7 +75,6 @@
     }
   }
 
-  // Interaction handlers
   function handleLike() {
     dispatch('like', { tweetId: tweetData?.id });
   }
@@ -104,7 +100,6 @@
     }
   }
 
-  // Format count for display
   function formatCount(count: number): string {
     if (count >= 1000000) {
       return (count / 1000000).toFixed(1) + 'M';
@@ -128,7 +123,7 @@
   >
     <!-- Background -->
     <div class="overlay-background" on:click={closeOverlay}></div>
-    
+
     <!-- Content -->
     <div class="overlay-content" on:click|stopPropagation>
       <!-- Header -->
@@ -141,7 +136,7 @@
             {currentIndex + 1} of {mediaItems.length}
           </div>
         </div>
-        
+
         <div class="header-right">
           <button class="action-button" on:click={handleDownload} title="Download">
             <DownloadIcon size="20" />
@@ -214,7 +209,7 @@
               <div class="username">@{tweetData.username}</div>
             </div>
           </div>
-          
+
           {#if tweetData.content}
             <div class="tweet-content">
               {tweetData.content}
@@ -533,7 +528,6 @@
     border-radius: 4px;
   }
 
-  /* Theme variables */
   .light {
     --overlay-bg: #ffffff;
     --header-bg: #f8f9fa;
@@ -556,7 +550,6 @@
     --hover-bg: #374151;
   }
 
-  /* Responsive design */
   @media (max-width: 768px) {
     .overlay-content {
       max-width: 100vw;

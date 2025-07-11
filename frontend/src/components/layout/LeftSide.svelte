@@ -77,7 +77,7 @@
 
   async function debugAdminStatus() {
     try {
-      // First check the auth state
+
       const authState = getAuthState();
       if (authState && isUserAdmin(authState)) {
         console.log("User already has admin status in auth store");
@@ -85,14 +85,12 @@
         return;
       }
 
-      // Verify with the backend
       const adminStatusFromAPI = await checkAdminStatus();
 
       if (adminStatusFromAPI) {
         console.log("API confirmed user is admin, updating auth store");
         isAdmin = true;
 
-        // Also update localStorage directly as a fallback
         try {
           const authData = localStorage.getItem("auth");
           if (authData) {
@@ -140,7 +138,6 @@
           joinDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : ""
         };
 
-        // Check admin status from both the API response and the auth store
         const authState = getAuthState();
         isAdmin = isUserAdmin(userData) || (authState && isUserAdmin(authState));
 
@@ -158,7 +155,6 @@
       } else {
         console.warn("Response received but no user data found in:", response);
 
-        // Even if userData is missing, still check auth store for admin status
         const authState = getAuthState();
         if (authState && isUserAdmin(authState)) {
           isAdmin = true;
@@ -168,7 +164,6 @@
     } catch (err) {
       console.error("Failed to fetch user profile:", err);
 
-      // Even on error, still check auth store for admin status
       const authState = getAuthState();
       if (authState && isUserAdmin(authState)) {
         isAdmin = true;
@@ -217,7 +212,6 @@
 
   let currentPath = "";
 
-  // Get unread notification count
   let unreadNotificationCount;
   notificationStore.unreadCount.subscribe(count => {
     unreadNotificationCount = count;
@@ -226,27 +220,22 @@
   onMount(() => {
     currentPath = window.location.pathname;
 
-    // Run debug admin status check
     debugAdminStatus();
 
-    // Check admin status from auth store as early as possible
     const authState = getAuthState();
     if (authState && isUserAdmin(authState)) {
       isAdmin = true;
       console.log("User is admin based on auth state");
     }
 
-    // Force a check for specific admin user IDs
     const userId = getUserId();
     console.log("Current logged in user ID:", userId);
 
-    // Last resort solution for known admin users
     if (userId === "91df5727-a9c5-427e-94ce-e0486e3bfdb7" ||
         userId === "f9d1a0f6-1b06-4411-907a-7a0f585df535") {
       console.log("DEBUG: Known admin user detected by ID, forcing admin view");
       isAdmin = true;
 
-      // Force update the auth state too
       try {
         const authData = localStorage.getItem("auth");
         if (authData) {
@@ -260,11 +249,9 @@
       }
     }
 
-    // If the user is authenticated, try to load their profile and check admin status
     if (isAuthenticated()) {
       console.log("User is authenticated, fetching profile on mount");
 
-      // Try to check admin status directly via API
       checkAdminStatus()
         .then(adminCheck => {
           if (adminCheck) {
@@ -288,7 +275,6 @@
       }
     }, 5000);
 
-    // Check window width to determine collapsed state
     const checkWidth = () => {
       windowWidth = window.innerWidth;
     };
@@ -664,14 +650,12 @@
     display: block;
   }
 
-  /* Theme toggle */
   .sidebar-theme-toggle {
     display: flex;
     justify-content: center;
     margin: var(--space-4, 16px) 0;
   }
 
-  /* User profile section */
   .sidebar-profile {
     display: flex;
     align-items: center;
@@ -758,7 +742,6 @@
     display: none;
   }
 
-  /* User menu dropdown */
   .sidebar-user-menu {
     position: absolute;
     bottom: 80px;
@@ -842,7 +825,6 @@
     color: rgba(255, 255, 255, 0.8);
   }
 
-  /* Debug section */
   .sidebar-debug {
     padding: var(--space-3, 12px) var(--space-4, 16px);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -876,7 +858,6 @@
     white-space: pre-wrap;
   }
 
-  /* Notification badge */
   .notification-badge {
     position: absolute;
     top: 8px;
@@ -903,7 +884,6 @@
     font-size: calc(var(--font-size-xs, 0.75rem) - 2px);
   }
 
-  /* Responsive adjustments */
   @media (max-width: 1080px) {
     .sidebar-inner:not(.sidebar-inner-mobile) {
       padding: var(--space-1, 4px);

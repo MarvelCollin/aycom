@@ -6,9 +6,8 @@
 
   const logger = createLoggerWithPrefix("SuggestedFollows");
     export let isDarkMode = false;
-  export let suggestedUsers: ISuggestedFollow[] = []; // Removed mock data - should be provided by parent component
+  export let suggestedUsers: ISuggestedFollow[] = []; 
 
-  // Track loading state per user
   const followingInProgress: Record<string, boolean> = {};
 
   function formatFollowerCount(count: number): string {
@@ -23,11 +22,10 @@
     const user = suggestedUsers[index];
     if (!user || followingInProgress[user.id]) return;
 
-    // Set loading state
     followingInProgress[user.id] = true;
 
     try {
-      // Optimistically update UI
+
       suggestedUsers = suggestedUsers.map((u, i) => {
         if (i === index) {
           return { ...u, is_following: !u.is_following };
@@ -35,24 +33,21 @@
         return u;
       });
 
-      // Make API call
       const userId = user.id;
-      const wasFollowing = !user.is_following; // We already toggled it above
+      const wasFollowing = !user.is_following; 
 
       logger.debug(`${wasFollowing ? "Unfollowing" : "Following"} user ${userId}`);
 
-      // API call - note we use the opposite of current state since we already updated it
       const response = wasFollowing
         ? await unfollowUser(userId)
         : await followUser(userId);
 
       logger.debug("Follow/unfollow response:", response);
 
-      // Show success message
       if (response.success) {
         toastStore.showToast(`${wasFollowing ? "Unfollowed" : "Followed"} @${user.username}`, "success");
       } else {
-        // If request failed, revert UI
+
         suggestedUsers = suggestedUsers.map((u, i) => {
           if (i === index) {
             return { ...u, is_following: wasFollowing };
@@ -64,7 +59,6 @@
     } catch (error) {
       logger.error("Error toggling follow:", error);
 
-      // Revert UI change
       suggestedUsers = suggestedUsers.map((u, i) => {
         if (i === index) {
           return { ...u, is_following: !u.is_following };
@@ -73,7 +67,7 @@
       });
 
       toastStore.showToast("Failed to update follow status", "error");    } finally {
-      // Clear loading state
+
       followingInProgress[user.id] = false;
     }
   }

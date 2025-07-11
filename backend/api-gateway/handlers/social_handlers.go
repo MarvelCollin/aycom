@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	threadProto "aycom/backend/proto/thread"
 	userProto "aycom/backend/proto/user"
 	"context"
@@ -15,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func FollowUser(c *gin.Context) {
@@ -108,7 +109,7 @@ func FollowUser(c *gin.Context) {
 
 	log.Printf("User %s successfully followed user %s. Response: %+v", currentUserID, resolvedUserID, followResp)
 
-	// Publish follow event to RabbitMQ
+	
 	if err := utils.PublishUserFollowedEvent(currentUserID, resolvedUserID, utils.EventData{
 		"timestamp": time.Now(),
 	}); err != nil {
@@ -188,7 +189,7 @@ func UnfollowUser(c *gin.Context) {
 
 	log.Printf("User %s successfully unfollowed user %s. Response: %+v", currentUserID, resolvedUserID, unfollowResp)
 
-	// Publish unfollow event to RabbitMQ
+	
 	if err := utils.PublishUserUnfollowedEvent(currentUserID, resolvedUserID, utils.EventData{
 		"timestamp": time.Now(),
 	}); err != nil {
@@ -393,14 +394,14 @@ func LikeThread(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Get thread service client
+	
 	threadClient := GetThreadServiceClient()
 	if threadClient == nil {
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service unavailable")
 		return
 	}
 
-	// Call thread service to like the thread
+	
 	err := threadClient.LikeThread(threadID, currentUserID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -417,14 +418,14 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
-	// Get updated thread data to return current counts
+	
 	thread, err := threadClient.GetThreadByID(threadID, currentUserID)
 	if err != nil {
 		log.Printf("Warning: Failed to get updated thread data after like: %v", err)
-		// Still return success since like operation succeeded
+		
 	}
 
-	// Publish like event to RabbitMQ
+	
 	if err := utils.PublishThreadLikedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
 	}); err != nil {
@@ -437,7 +438,7 @@ func LikeThread(c *gin.Context) {
 		"is_now_liked": true,
 	}
 
-	// Add updated counts if we got the thread data
+	
 	if thread != nil {
 		response["likes_count"] = thread.LikeCount
 		response["bookmark_count"] = thread.BookmarkCount
@@ -462,14 +463,14 @@ func UnlikeThread(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Get thread service client
+	
 	threadClient := GetThreadServiceClient()
 	if threadClient == nil {
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service unavailable")
 		return
 	}
 
-	// Call thread service to unlike the thread
+	
 	err := threadClient.UnlikeThread(threadID, currentUserID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -486,14 +487,14 @@ func UnlikeThread(c *gin.Context) {
 		return
 	}
 
-	// Get updated thread data to return current counts
+	
 	thread, err := threadClient.GetThreadByID(threadID, currentUserID)
 	if err != nil {
 		log.Printf("Warning: Failed to get updated thread data after unlike: %v", err)
-		// Still return success since unlike operation succeeded
+		
 	}
 
-	// Publish unlike event to RabbitMQ
+	
 	if err := utils.PublishThreadUnlikedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
 	}); err != nil {
@@ -506,7 +507,7 @@ func UnlikeThread(c *gin.Context) {
 		"is_now_liked": false,
 	}
 
-	// Add updated counts if we got the thread data
+	
 	if thread != nil {
 		response["likes_count"] = thread.LikeCount
 		response["bookmark_count"] = thread.BookmarkCount
@@ -605,14 +606,14 @@ func ReplyToThread(c *gin.Context) {
 		return
 	}
 
-	// Get updated thread data to return current counts for the parent thread
+	
 	threadService := GetThreadServiceClient()
 	if threadService != nil {
 		thread, err := threadService.GetThreadByID(threadID, userID)
 		if err != nil {
 			log.Printf("Warning: Failed to get updated thread data after reply: %v", err)
 		} else if thread != nil {
-			// Return the reply response along with updated parent thread counts
+			
 			response := map[string]interface{}{
 				"reply": resp.Reply,
 				"updated_thread": map[string]interface{}{
@@ -629,7 +630,7 @@ func ReplyToThread(c *gin.Context) {
 		}
 	}
 
-	// Fallback to original response if we couldn't get updated data
+	
 	c.JSON(http.StatusCreated, resp)
 }
 
@@ -688,7 +689,7 @@ func GetThreadReplies(c *gin.Context) {
 		return
 	}
 
-	// Standardize the response format
+	
 	standardizedReplies := make([]map[string]interface{}, 0)
 
 	if resp != nil && resp.Replies != nil && len(resp.Replies) > 0 {
@@ -700,29 +701,29 @@ func GetThreadReplies(c *gin.Context) {
 					"created_at":          reply.Reply.CreatedAt.AsTime(),
 					"updated_at":          reply.Reply.UpdatedAt.AsTime(),
 					"thread_id":           threadID,
-					"parent_id":           nil, // Default to null for top-level replies
+					"parent_id":           nil, 
 					"likes_count":         reply.LikesCount,
 					"replies_count":       reply.RepliesCount,
-					"reposts_count":       0, // Default value if not available
-					"bookmark_count":      0, // Default value if not available
-					"views_count":         0, // Default value if not available
+					"reposts_count":       0, 
+					"bookmark_count":      0, 
+					"views_count":         0, 
 					"is_liked":            reply.LikedByUser,
 					"is_bookmarked":       reply.BookmarkedByUser,
-					"is_reposted":         false, // Default value if not available
-					"is_pinned":           false, // Default value if not available
-					"is_verified":         false, // Default value if not available
+					"is_reposted":         false, 
+					"is_pinned":           false, 
+					"is_verified":         false, 
 					"user_id":             reply.Reply.UserId,
 					"username":            reply.User.Username,
 					"name":                reply.User.Name,
 					"profile_picture_url": reply.User.ProfilePictureUrl,
 				}
 
-				// Handle parent reply ID if available
+				
 				if reply.Reply.ParentId != "" {
 					standardizedReply["parent_id"] = reply.Reply.ParentId
 				}
 
-				// Handle media if available
+				
 				if reply.Reply.Media != nil && len(reply.Reply.Media) > 0 {
 					mediaList := make([]map[string]interface{}, 0)
 					for _, m := range reply.Reply.Media {
@@ -881,7 +882,7 @@ func BookmarkThread(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Connect to thread service
+	
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
@@ -894,7 +895,7 @@ func BookmarkThread(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service to bookmark the thread
+	
 	_, err = client.BookmarkThread(ctx, &threadProto.BookmarkThreadRequest{
 		ThreadId: threadID,
 		UserId:   currentUserID,
@@ -916,14 +917,14 @@ func BookmarkThread(c *gin.Context) {
 		return
 	}
 
-	// Publish bookmark event to RabbitMQ
+	
 	if err := utils.PublishThreadBookmarkedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
 	}); err != nil {
 		log.Printf("Warning: Failed to publish thread bookmarked event: %v", err)
 	}
 
-	// Get updated thread data to return current counts
+	
 	threadService := GetThreadServiceClient()
 	if threadService != nil {
 		thread, err := threadService.GetThreadByID(threadID, currentUserID)
@@ -943,7 +944,7 @@ func BookmarkThread(c *gin.Context) {
 		}
 	}
 
-	// Fallback response if we couldn't get updated data
+	
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":       "Thread bookmarked successfully",
 		"thread_id":     threadID,
@@ -965,7 +966,7 @@ func RemoveBookmark(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Connect to thread service
+	
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
@@ -978,7 +979,7 @@ func RemoveBookmark(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service to remove the bookmark
+	
 	_, err = client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
 		ThreadId: threadID,
 		UserId:   currentUserID,
@@ -998,14 +999,14 @@ func RemoveBookmark(c *gin.Context) {
 		return
 	}
 
-	// Publish unbookmark event to RabbitMQ
+	
 	if err := utils.PublishThreadUnbookmarkedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
 	}); err != nil {
 		log.Printf("Warning: Failed to publish thread unbookmarked event: %v", err)
 	}
 
-	// Get updated thread data to return current counts
+	
 	threadService := GetThreadServiceClient()
 	if threadService != nil {
 		thread, err := threadService.GetThreadByID(threadID, currentUserID)
@@ -1025,7 +1026,7 @@ func RemoveBookmark(c *gin.Context) {
 		}
 	}
 
-	// Fallback response if we couldn't get updated data
+	
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":       "Bookmark removed successfully",
 		"thread_id":     threadID,
@@ -1134,7 +1135,7 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	pagedThreads := allThreads[startIdx:endIdx]
 
-	// Convert Thread structs to proper JSON format with lowercase field names
+	
 	formattedThreads := make([]gin.H, len(pagedThreads))
 	for i, thread := range pagedThreads {
 		formattedThreads[i] = gin.H{
@@ -1158,7 +1159,7 @@ func GetThreadsFromFollowing(c *gin.Context) {
 			"parent_id":           thread.ParentID,
 		}
 
-		// Add media if available
+		
 		if len(thread.Media) > 0 {
 			mediaList := make([]gin.H, len(thread.Media))
 			for j, media := range thread.Media {
@@ -1449,7 +1450,7 @@ func SearchSocialUsers(c *gin.Context) {
 	}
 
 	log.Printf("SearchSocialUsers: query=%s, filter=%s, page=%d, limit=%d", query, filter, page, limit)
-	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit, false) // Disable fuzzy for social search
+	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit, false) 
 	if err != nil {
 		log.Printf("Error searching users: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to search users")
@@ -1639,7 +1640,7 @@ func GetRepliesByParentReply(c *gin.Context) {
 
 	c.Header("Cache-Control", "public, max-age=10")
 
-	// Standardize the response format
+	
 	standardizedReplies := make([]map[string]interface{}, 0)
 
 	if resp != nil && resp.Replies != nil && len(resp.Replies) > 0 {
@@ -1651,24 +1652,24 @@ func GetRepliesByParentReply(c *gin.Context) {
 					"created_at":          reply.Reply.CreatedAt.AsTime(),
 					"updated_at":          reply.Reply.UpdatedAt.AsTime(),
 					"thread_id":           reply.Reply.ThreadId,
-					"parent_id":           parentReplyID, // Set parent_id to the parent reply ID
+					"parent_id":           parentReplyID, 
 					"likes_count":         reply.LikesCount,
 					"replies_count":       reply.RepliesCount,
-					"reposts_count":       0, // Default value if not available
+					"reposts_count":       0, 
 					"bookmark_count":      reply.BookmarkCount,
-					"views_count":         0, // Default value if not available
+					"views_count":         0, 
 					"is_liked":            reply.LikedByUser,
 					"is_bookmarked":       reply.BookmarkedByUser,
-					"is_reposted":         false, // Default value if not available
-					"is_pinned":           false, // Default value if not available
-					"is_verified":         false, // Default value if not available
+					"is_reposted":         false, 
+					"is_pinned":           false, 
+					"is_verified":         false, 
 					"user_id":             reply.Reply.UserId,
 					"username":            reply.User.Username,
 					"name":                reply.User.Name,
 					"profile_picture_url": reply.User.ProfilePictureUrl,
 				}
 
-				// Handle media if available
+				
 				if reply.Reply.Media != nil && len(reply.Reply.Media) > 0 {
 					mediaList := make([]map[string]interface{}, 0)
 					for _, m := range reply.Reply.Media {

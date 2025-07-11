@@ -105,7 +105,7 @@ export async function getCommunityRequests(page: number = 1, limit: number = 10,
     }
   };
 
-  // Handle the nested data structure
+  
   if (response.data && response.data.requests && Array.isArray(response.data.requests)) {
     standardizedResponse.data = response.data.requests.map(standardizeCommunityRequest);
     standardizedResponse.requests = response.data.requests;
@@ -195,11 +195,11 @@ export async function banUser(userId: string, ban: boolean, reason?: string): Pr
   logger.info("Ban user request body:", requestBody);
 
   try {
-    // Construct URL explicitly
+    
     const url = `${API_BASE_URL}/admin/users/${encodeURIComponent(userId)}/ban`;
     logger.info(`Making POST request to ${url}`);
 
-    // Get auth token with detailed logging
+    
     let token;
     try {
       const authData = localStorage.getItem('auth');
@@ -234,7 +234,7 @@ export async function banUser(userId: string, ban: boolean, reason?: string): Pr
       };
     }
     
-    // Make the API request with explicit headers and body formatting
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -253,20 +253,20 @@ export async function banUser(userId: string, ban: boolean, reason?: string): Pr
       throw new Error(data.error?.message || data.message || `Request failed with status ${response.status}`);
     }
 
-    // Handle different response formats
-    const success = data.success !== false; // Assume success unless explicitly marked as false
+    
+    const success = data.success !== false; 
     const message = data.message || data.data?.message || (success ?
       `User successfully ${ban ? "banned" : "unbanned"}` :
       `Failed to ${ban ? "ban" : "unban"} user`);
 
-    // Add additional logging for debugging
+    
     if (success) {
       logger.info(`Successfully ${ban ? "banned" : "unbanned"} user ${userId}`);
     } else {
       logger.warn(`Failed to ${ban ? "ban" : "unban"} user ${userId}: ${message}`);
     }
 
-    // Return standardized response
+    
     return {
       success,
       message,

@@ -7,14 +7,13 @@ import (
 	"log"
 	"time"
 
-	"aycom/backend/api-gateway/config"
-
 	"github.com/redis/go-redis/v9"
+
+	"aycom/backend/api-gateway/config"
 )
 
 var redisClient *redis.Client
 
-// InitRedis initializes the Redis client
 func InitRedis(cfg *config.Config) error {
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
@@ -22,7 +21,6 @@ func InitRedis(cfg *config.Config) error {
 		DB:       cfg.Redis.DB,
 	})
 
-	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -35,12 +33,10 @@ func InitRedis(cfg *config.Config) error {
 	return nil
 }
 
-// GetRedisClient returns the Redis client instance
 func GetRedisClient() *redis.Client {
 	return redisClient
 }
 
-// SetCache stores data in Redis with TTL
 func SetCache(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
 	if redisClient == nil {
 		return fmt.Errorf("Redis client not initialized")
@@ -60,7 +56,6 @@ func SetCache(ctx context.Context, key string, value interface{}, ttl time.Durat
 	return nil
 }
 
-// GetCache retrieves data from Redis
 func GetCache(ctx context.Context, key string, dest interface{}) error {
 	if redisClient == nil {
 		return fmt.Errorf("Redis client not initialized")
@@ -83,7 +78,6 @@ func GetCache(ctx context.Context, key string, dest interface{}) error {
 	return nil
 }
 
-// DeleteCache removes data from Redis
 func DeleteCache(ctx context.Context, key string) error {
 	if redisClient == nil {
 		return fmt.Errorf("Redis client not initialized")
@@ -98,7 +92,6 @@ func DeleteCache(ctx context.Context, key string) error {
 	return nil
 }
 
-// DeleteCachePattern removes all keys matching a pattern
 func DeleteCachePattern(ctx context.Context, pattern string) error {
 	if redisClient == nil {
 		return fmt.Errorf("Redis client not initialized")

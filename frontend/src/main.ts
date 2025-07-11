@@ -6,7 +6,7 @@ import { createLoggerWithPrefix } from "./utils/logger";
 
 const logger = createLoggerWithPrefix("Main");
 
-// Initialize app
+
 async function initApp() {
   try {
     await initializeSupabaseBuckets();
@@ -16,7 +16,7 @@ async function initApp() {
     logger.info("Continuing app initialization despite bucket setup failure");
   }
 
-  // Mount the app
+  
   mount(App, {
     target: document.getElementById("app")!,
   });

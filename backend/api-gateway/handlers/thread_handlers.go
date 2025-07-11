@@ -22,13 +22,13 @@ import (
 	"aycom/backend/api-gateway/utils"
 )
 
-// Helper function to safely extract bookmark count using reflection
+
 func extractBookmarkCount(t *threadProto.ThreadResponse) int64 {
 	if t == nil {
 		return 0
 	}
 
-	// Try direct method call first if it exists
+	
 	tValue := reflect.ValueOf(t)
 	getBookmarkCountMethod := tValue.MethodByName("GetBookmarkCount")
 	if getBookmarkCountMethod.IsValid() {
@@ -38,14 +38,14 @@ func extractBookmarkCount(t *threadProto.ThreadResponse) int64 {
 		}
 	}
 
-	// Try to access field directly with reflection as fallback
+	
 	tElem := reflect.ValueOf(t).Elem()
 	field := tElem.FieldByName("BookmarkCount")
 	if field.IsValid() {
 		return field.Int()
 	}
 
-	// Return default if nothing works
+	
 	return 0
 }
 
@@ -53,7 +53,7 @@ func CreateThread(c *gin.Context) {
 
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
-		origin = "http://localhost:3000"
+		origin = "http:
 	}
 	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -161,7 +161,7 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
-	// Check for both userID and userId keys to handle different middleware implementations
+	
 	userIDAny, exists := c.Get("userID")
 	if !exists {
 		userIDAny, exists = c.Get("userId")
@@ -194,13 +194,13 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
-	// Log the thread data we received from the service
+	
 	log.Printf("Thread data from service - ID: %s, UserID: %s, Username: %s, DisplayName: %s",
 		thread.ID, thread.UserID, thread.Username, thread.DisplayName)
 
-	// Ensure username is never anonymous
+	
 	if thread.Username == "" || thread.Username == "anonymous" {
-		// Try to fetch user info if we have a valid UserID
+		
 		if thread.UserID != "" && userServiceClient != nil {
 			user, err := userServiceClient.GetUserById(thread.UserID)
 			if err == nil && user != nil {
@@ -235,7 +235,7 @@ func GetThread(c *gin.Context) {
 		"parent_id":           thread.ParentID,
 	}
 
-	// Include parent content and user if available
+	
 	if thread.ParentContent != "" {
 		threadData["parent_content"] = thread.ParentContent
 	}
@@ -258,7 +258,7 @@ func GetThread(c *gin.Context) {
 
 	log.Printf("Thread %s bookmark status for user %s: %v", threadID, userID, thread.IsBookmarked)
 
-	// Log the final response data being sent
+	
 	log.Printf("Sending thread response - ID: %s, UserID: %s, Username: %s, Name: %s",
 		threadData["id"], threadData["user_id"], threadData["username"], threadData["name"])
 
@@ -317,18 +317,18 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	// Try to parse the userID as UUID first to validate format
+	
 	userUUID, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
 		log.Printf("UserID '%s' is not a valid UUID format: %v", userID, uuidErr)
 
-		// If there's no userServiceClient initialized, we can't do username resolution
+		
 		if userServiceClient == nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
-		// Try to resolve as username instead
+		
 		log.Printf("Attempting to resolve '%s' as username", userID)
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
@@ -340,19 +340,19 @@ func GetThreadsByUser(c *gin.Context) {
 		userID = user.ID
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("userId"), userID)
 
-		// Double-check the resolved ID is a valid UUID
+		
 		if _, err := uuid.Parse(userID); err != nil {
 			log.Printf("ERROR: Resolved user ID '%s' is not a valid UUID", userID)
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get valid user ID")
 			return
 		}
 	} else {
-		// UUID is valid, check if the user exists to provide a better error message
+		
 		if userServiceClient != nil {
 			exists, err := userServiceClient.UserExists(userUUID.String())
 			if err != nil {
 				log.Printf("Error checking if user exists: %v", err)
-				// Not returning here as we'll try to proceed with the request anyway
+				
 			} else if !exists {
 				log.Printf("User with ID %s does not exist", userID)
 				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with ID %s not found", userID))
@@ -412,7 +412,7 @@ func GetThreadsByUser(c *gin.Context) {
 			"likes_count":   t.LikesCount,
 			"replies_count": t.RepliesCount,
 			"reposts_count": t.RepostsCount,
-			// Initialize with default value since the field is not directly accessible
+			
 			"bookmark_count": extractBookmarkCount(t),
 			"views_count":    t.Thread.ViewCount,
 			"is_liked":       t.LikedByUser,
@@ -825,7 +825,7 @@ func GetAllThreads(c *gin.Context) {
 
 	threadList := make([]map[string]interface{}, len(threads))
 	for i, thread := range threads {
-		// Ensure dates are properly formatted as ISO 8601 strings
+		
 		createdAt := thread.CreatedAt.Format(time.RFC3339)
 		updatedAt := thread.UpdatedAt.Format(time.RFC3339)
 
@@ -837,14 +837,14 @@ func GetAllThreads(c *gin.Context) {
 			"user_id":             thread.UserID,
 			"username":            thread.Username,
 			"display_name":        thread.DisplayName,
-			"name":                thread.DisplayName, // Include both for frontend compatibility
+			"name":                thread.DisplayName, 
 			"profile_picture_url": thread.ProfilePicture,
 			"likes_count":         thread.LikeCount,
-			"like_count":          thread.LikeCount, // Include both for frontend compatibility
+			"like_count":          thread.LikeCount, 
 			"replies_count":       thread.ReplyCount,
-			"reply_count":         thread.ReplyCount, // Include both for frontend compatibility
+			"reply_count":         thread.ReplyCount, 
 			"reposts_count":       thread.RepostCount,
-			"repost_count":        thread.RepostCount, // Include both for frontend compatibility
+			"repost_count":        thread.RepostCount, 
 			"is_liked":            thread.IsLiked,
 			"is_reposted":         thread.IsReposted,
 			"is_bookmarked":       thread.IsBookmarked,
@@ -852,7 +852,7 @@ func GetAllThreads(c *gin.Context) {
 			"hashtags":            thread.Hashtags,
 		}
 
-		// Add media if available
+		
 		if len(thread.Media) > 0 {
 			threadData["media"] = thread.Media
 		}
@@ -949,7 +949,7 @@ func GetUserReplies(c *gin.Context) {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
-				// If no replies found, return an empty array instead of an error
+				
 				c.JSON(http.StatusOK, gin.H{
 					"replies": []interface{}{},
 					"total":   0,
@@ -963,7 +963,7 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
-	// Handle the case where no replies are found but no error occurred
+	
 	if replies == nil || len(replies) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"replies": []interface{}{},
@@ -1096,7 +1096,7 @@ func GetUserLikedThreads(c *gin.Context) {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
-				// If no liked threads found, return an empty array instead of an error
+				
 				c.JSON(http.StatusOK, gin.H{
 					"threads": []interface{}{},
 					"total":   0,
@@ -1122,7 +1122,7 @@ func GetUserLikedThreads(c *gin.Context) {
 			"replies_count":       thread.ReplyCount,
 			"reposts_count":       thread.RepostCount,
 			"bookmark_count":      thread.BookmarkCount,
-			"is_liked":            true, // Since these are liked threads
+			"is_liked":            true, 
 			"is_bookmarked":       thread.IsBookmarked,
 			"username":            thread.Username,
 			"name":                thread.DisplayName,
@@ -1233,7 +1233,7 @@ func GetUserMedia(c *gin.Context) {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
-				// If no media threads found, return an empty array instead of an error
+				
 				c.JSON(http.StatusOK, gin.H{
 					"threads": []interface{}{},
 					"total":   0,
@@ -1247,7 +1247,7 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
-	// Handle the case where no media threads are found but no error occurred
+	
 	if threads == nil || len(threads) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"threads": []interface{}{},
@@ -1880,25 +1880,25 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 	})
 }
 
-// standardizeReplyResponse creates a standardized reply response object
+
 func standardizeReplyResponse(reply *Thread) map[string]interface{} {
 	replyData := map[string]interface{}{
 		"id":                  reply.ID,
 		"content":             reply.Content,
 		"created_at":          reply.CreatedAt,
 		"updated_at":          reply.UpdatedAt,
-		"thread_id":           reply.ParentID, // Parent thread ID
-		"parent_id":           nil,            // Default null for top-level replies
+		"thread_id":           reply.ParentID, 
+		"parent_id":           nil,            
 		"likes_count":         reply.LikeCount,
 		"replies_count":       reply.ReplyCount,
 		"reposts_count":       reply.RepostCount,
 		"bookmark_count":      reply.BookmarkCount,
-		"views_count":         0, // Default value if not available
+		"views_count":         0, 
 		"is_liked":            reply.IsLiked,
 		"is_reposted":         reply.IsReposted,
 		"is_bookmarked":       reply.IsBookmarked,
 		"is_pinned":           reply.IsPinned,
-		"is_verified":         false, // Default value if not available
+		"is_verified":         false, 
 		"user_id":             reply.UserID,
 		"username":            reply.Username,
 		"name":                reply.DisplayName,
@@ -1988,7 +1988,7 @@ func GetRepliesByThread(c *gin.Context) {
 		return
 	}
 
-	// Convert proto replies to our Reply struct
+	
 	replies := make([]map[string]interface{}, 0, len(resp.Replies))
 	for _, r := range resp.Replies {
 		if r == nil || r.Reply == nil {
@@ -2029,7 +2029,7 @@ func GetRepliesByThread(c *gin.Context) {
 			reply["is_verified"] = r.User.IsVerified
 		}
 
-		// Include parent information if available
+		
 		if r.ParentContent != nil {
 			reply["parent_content"] = *r.ParentContent
 		}
@@ -2054,7 +2054,7 @@ func GetRepliesByThread(c *gin.Context) {
 	})
 }
 
-// GetThreadsByHashtag retrieves threads associated with a specific hashtag
+
 func GetThreadsByHashtag(c *gin.Context) {
 	hashtag := c.Param("hashtag")
 	if hashtag == "" {
@@ -2062,22 +2062,22 @@ func GetThreadsByHashtag(c *gin.Context) {
 		return
 	}
 
-	// Clean the hashtag (remove # if present)
+	
 	if strings.HasPrefix(hashtag, "#") {
 		hashtag = hashtag[1:]
 	}
 
-	// Parse pagination parameters
+	
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	sortBy := c.DefaultQuery("sort_by", "recent")
 	sortOrder := c.DefaultQuery("sort_order", "desc")
 
-	// Log the request
+	
 	log.Printf("GetThreadsByHashtag: hashtag=%s, page=%d, limit=%d, sortBy=%s, sortOrder=%s",
 		hashtag, page, limit, sortBy, sortOrder)
 
-	// Get authenticated user ID if available
+	
 	var userID string
 	userIDValue, exists := c.Get("userId")
 	if exists {
@@ -2092,7 +2092,7 @@ func GetThreadsByHashtag(c *gin.Context) {
 		return
 	}
 
-	// Get threads with this hashtag
+	
 	threads, err := threadServiceClient.GetThreadsByHashtag(hashtag, userID, page, limit)
 	if err != nil {
 		log.Printf("Error getting threads by hashtag: %v", err)
@@ -2100,7 +2100,7 @@ func GetThreadsByHashtag(c *gin.Context) {
 		return
 	}
 
-	// Sort the threads based on the requested sort parameters
+	
 	if sortBy == "likes" {
 		sort.Slice(threads, func(i, j int) bool {
 			if sortOrder == "desc" {
@@ -2108,7 +2108,7 @@ func GetThreadsByHashtag(c *gin.Context) {
 			}
 			return threads[i].LikeCount < threads[j].LikeCount
 		})
-	} else { // Default to sorting by date
+	} else { 
 		sort.Slice(threads, func(i, j int) bool {
 			if sortOrder == "desc" {
 				return threads[i].CreatedAt.After(threads[j].CreatedAt)
@@ -2117,12 +2117,12 @@ func GetThreadsByHashtag(c *gin.Context) {
 		})
 	}
 
-	// Format the response to match what frontend expects
-	// Convert threads to frontend format
+	
+	
 	var formattedThreads []map[string]interface{}
 
 	for _, thread := range threads {
-		// Ensure dates are properly formatted as ISO 8601 strings
+		
 		createdAt := thread.CreatedAt.Format(time.RFC3339)
 		updatedAt := thread.UpdatedAt.Format(time.RFC3339)
 
@@ -2134,14 +2134,14 @@ func GetThreadsByHashtag(c *gin.Context) {
 			"user_id":             thread.UserID,
 			"username":            thread.Username,
 			"display_name":        thread.DisplayName,
-			"name":                thread.DisplayName, // Include both for frontend compatibility
+			"name":                thread.DisplayName, 
 			"profile_picture_url": thread.ProfilePicture,
 			"likes_count":         thread.LikeCount,
-			"like_count":          thread.LikeCount, // Include both for frontend compatibility
+			"like_count":          thread.LikeCount, 
 			"replies_count":       thread.ReplyCount,
-			"reply_count":         thread.ReplyCount, // Include both for frontend compatibility
+			"reply_count":         thread.ReplyCount, 
 			"reposts_count":       thread.RepostCount,
-			"repost_count":        thread.RepostCount, // Include both for frontend compatibility
+			"repost_count":        thread.RepostCount, 
 			"is_liked":            thread.IsLiked,
 			"is_reposted":         thread.IsReposted,
 			"is_bookmarked":       thread.IsBookmarked,
@@ -2149,7 +2149,7 @@ func GetThreadsByHashtag(c *gin.Context) {
 			"hashtags":            thread.Hashtags,
 		}
 
-		// Add media if available
+		
 		if len(thread.Media) > 0 {
 			threadData["media"] = thread.Media
 		}
@@ -2163,7 +2163,7 @@ func GetThreadsByHashtag(c *gin.Context) {
 		"total_count": len(threads),
 		"pagination": gin.H{
 			"current_page": page,
-			"total_pages":  1, // Since we don't have exact total count
+			"total_pages":  1, 
 			"total_count":  len(threads),
 			"per_page":     limit,
 		},
@@ -2172,12 +2172,12 @@ func GetThreadsByHashtag(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetUserThreads is an alias for GetThreadsByUser to fit the route definition
+
 func GetUserThreads(c *gin.Context) {
 	GetThreadsByUser(c)
 }
 
-// GetUserMediaThreads is an alias for GetUserMedia to fit the route definition
+
 func GetUserMediaThreads(c *gin.Context) {
 	GetUserMedia(c)
 }

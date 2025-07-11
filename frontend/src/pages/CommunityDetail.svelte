@@ -38,7 +38,6 @@
     views?: number;
   }
 
-  // Import icons
   import UsersIcon from "svelte-feather-icons/src/icons/UsersIcon.svelte";
   import InfoIcon from "svelte-feather-icons/src/icons/InfoIcon.svelte";
   import BookmarkIcon from "svelte-feather-icons/src/icons/BookmarkIcon.svelte";
@@ -51,19 +50,18 @@
   import ClockIcon from "svelte-feather-icons/src/icons/ClockIcon.svelte";
   import ImageIcon from "svelte-feather-icons/src/icons/ImageIcon.svelte";
   import UserCheckIcon from "svelte-feather-icons/src/icons/UserCheckIcon.svelte";
-    // Components
+
   import TweetCard from "../components/social/TweetCard.svelte";
   import Spinner from "../components/common/Spinner.svelte";
   import UserCard from "../components/social/UserCard.svelte";
   import TabButtons from "../components/common/TabButtons.svelte";
   import Button from "../components/common/Button.svelte";
 
-  // Community-specific components
   import CommunityPosts from "../components/communities/CommunityPosts.svelte";
   import CommunityMembers from "../components/communities/CommunityMembers.svelte";
   import CommunityRules from "../components/communities/CommunityRules.svelte";
   import CommunityAbout from "../components/communities/CommunityAbout.svelte";
-    // Define types for our data
+
   interface Community {
     id: string;
     name: string;
@@ -103,7 +101,6 @@
     description: string;
     order: number;  }
 
-  // Make Thread compatible with ITweet
   interface Thread extends ITweet {
     authorId?: string;
     createdAt?: Date;
@@ -123,10 +120,8 @@
   };
   $: isDarkMode = $theme === "dark";
 
-  // Get community ID from URL or props
   export let communityId = "";
 
-  // If not provided directly, extract from URL
   $: {
     if (!communityId && typeof window !== "undefined") {
       const urlParts = window.location.pathname.split("/");
@@ -137,19 +132,18 @@
     }
   }
 
-  // Community data
   let community: Community | null = null;
   let isLoading = true;
   let isMember = false;
   let isPending = false;
   let members: Member[] = [];
-  let userRole = "member"; // Can be 'owner', 'admin', 'moderator', 'member'
+  let userRole = "member"; 
   let rules: Rule[] = [];
   let threads: Thread[] = [];
   let pendingMembers: Member[] = [];
-  let activeTab = "top"; // 'top', 'latest', 'media', 'about', 'manage'
+  let activeTab = "top"; 
   let errorMessage = "";
-  // Add properties to store different thread types
+
   let topThreads: Thread[] = [];
   let latestThreads: Thread[] = [];
   let mediaThreads: Thread[] = [];
@@ -159,7 +153,6 @@
   let topMembers: Member[] = [];
   let isLoadingTopMembers = false;
 
-  // Media pagination
   let mediaPage = 1;
   let hasMoreMedia = true;
   let isLoadingMoreMedia = false;
@@ -184,11 +177,9 @@
     }
   });
 
-  // Helper function to get the Supabase URL for community logos/banners
   function getImageUrl(url, type = "logo") {
     if (!url) return null;
 
-    // Use the shared formatStorageUrl utility for consistent image handling
     return formatStorageUrl(url);
   }
 
@@ -197,12 +188,11 @@
       isLoading = true;
       errorMessage = "";
 
-      // Get community details
       console.log(`Calling getCommunityById for community: ${communityId}`);
       let communityResponse;
 
       try {
-        // Try the main community API
+
         communityResponse = await getCommunityById(communityId);
         console.log("Community response from API:", communityResponse);
 
@@ -215,7 +205,6 @@
         throw new Error("Community not found or inaccessible");
       }
 
-      // Extract community data handling different response formats
       let communityData;
       if (communityResponse.community) {
         communityData = communityResponse.community;
@@ -226,7 +215,6 @@
         throw new Error("Invalid community data format");
       }
 
-      // Normalize community data fields
       community = {
         id: communityData.id || communityId,
         name: communityData.name || "Unnamed Community",
@@ -243,8 +231,7 @@
 
       console.log("Normalized community data:", community);
 
-      // Check membership status
-      try {        // Only check membership if user is logged in
+      try {        
         const authData = localStorage.getItem("auth");
         console.log("🔍 DEBUG: Auth data from localStorage:", authData ? "present" : "missing");
         if (authData) {
@@ -272,9 +259,8 @@
               data?: MembershipData;
             }
 
-            // Cast the response to the proper type
             const typedResponse = membershipResponse as MembershipResponse;
-              // Check various response formats for membership status
+
             if (typedResponse?.status === "member" ||
                 typedResponse?.is_member === true ||
                 typedResponse?.data?.is_member === true ||
@@ -282,7 +268,6 @@
               isMember = true;
               console.log("✅ DEBUG: User is a member of this community");
 
-              // Get the user's role in the community
               userRole = typedResponse?.user_role ||
                          typedResponse?.data?.user_role ||
                          "member";
@@ -305,12 +290,11 @@
         }
       } catch (membershipError) {
         console.error("❌ DEBUG: Error checking membership status:", membershipError);
-        // Default to non-member if check fails
+
         isMember = false;
         isPending = false;
       }
 
-      // Load posts, members, and rules in parallel
       try {
         await Promise.allSettled([
           loadThreads(),
@@ -346,12 +330,11 @@
     }
   }  async function loadThreads() {
     try {
-      // For now, use getAllThreads to avoid the 400 error
-      // In a real implementation, you'd want a community-specific threads endpoint
+
       const threadsResponse = await getAllThreads(1, 10);
 
       if (threadsResponse && Array.isArray(threadsResponse.threads)) {
-        // Filter threads by community_id if the field exists, otherwise show all threads
+
         threads = threadsResponse.threads.filter(thread => 
           !thread.community_id || thread.community_id === communityId
         ) as Thread[];
@@ -363,7 +346,6 @@
         threads = [];
       }
 
-      // If no community-specific threads found, show some general threads for demo purposes
       if (threads.length === 0 && threadsResponse && Array.isArray(threadsResponse.threads)) {
         threads = threadsResponse.threads.slice(0, 5) as Thread[];
       }
@@ -391,30 +373,26 @@
       members = [];
     }
   }
-  // Process member avatars to use Supabase URLs
+
   function processMembersAvatars(membersList) {
     return membersList.map((member, index) => {
       const processedMember = { ...member };
 
-      // Ensure unique ID - use user_id as primary, fallback to index-based ID
       if (!processedMember.id && processedMember.user_id) {
         processedMember.id = processedMember.user_id;
       } else if (!processedMember.id) {
         processedMember.id = `member-${index}-${Date.now()}`;
       }
 
-      // Handle different avatar field names
       const avatarUrl = member.avatar_url || member.profile_picture_url || member.avatar || "";
 
       if (avatarUrl) {
-        // Process the avatar URL to use Supabase
+
         processedMember.avatar_url = getProfileImageUrl(avatarUrl);
       }
 
-      // Ensure we have username and name even if they weren't in the original data
-      // This handles both regular members and pending join requests
       if (!processedMember.username && processedMember.user_id) {
-        // Generate a readable username from the user ID
+
         const userId = processedMember.user_id;
         processedMember.username = `user_${userId.substring(0, 8)}`;
       }
@@ -435,17 +413,15 @@
     });
   }
 
-  // Helper function to get Supabase URL for profile pictures
   function getProfileImageUrl(url) {
     if (!url) return null;
 
-    // Use the shared formatStorageUrl utility for consistent image handling
     return formatStorageUrl(url);
   }
 
   async function loadPendingMembers() {
     try {
-      // Only attempt to load pending members if user is authenticated and community exists
+
       if (!authState.is_authenticated || !community || !community.id) {
         pendingMembers = [];
         return;
@@ -457,7 +433,6 @@
       if (pendingResponse && Array.isArray(pendingResponse.join_requests)) {
         console.log(`Found ${pendingResponse.join_requests.length} pending join requests`);
 
-        // Debug log to see the structure of the first join request (if available)
         if (pendingResponse.join_requests.length > 0) {
           const sampleRequest = pendingResponse.join_requests[0];
           console.log("Example join request structure:", sampleRequest);
@@ -467,21 +442,19 @@
           console.log("Join request username field value:", sampleRequest.username);
           console.log("Join request name field value:", sampleRequest.name || sampleRequest.display_name);
 
-          // If the join request contains a user object, log its structure too
           if (sampleRequest.user) {
             console.log("User object in join request:", sampleRequest.user);
             console.log("User object fields:", Object.keys(sampleRequest.user));
             console.log("User object username:", sampleRequest.user.username);
           }
-        }          // Format users from join requests to match Member structure
+        }          
         pendingMembers = pendingResponse.join_requests.map((request, index) => {
           console.log(`Processing request for user_id: ${request.user_id}, found username: ${request.username || "MISSING"}`);
 
-          // The backend now returns real user data, so prioritize that
           const member = {
             id: request.id || request.user_id || `pending-${index}-${Date.now()}`,
             user_id: request.user_id || "",
-            // Prioritize real username from backend, fallback only if not available
+
             username: request.username || `user_${(request.user_id || "").substring(0, 8)}`,
             name: request.name || request.username || `User ${(request.user_id || "").substring(0, 8)}`,
             role: "pending",
@@ -493,10 +466,9 @@
           return member;
         });
 
-        // Process avatars for pending members
         pendingMembers = processMembersAvatars(pendingMembers);
       } else if (pendingResponse && pendingResponse.data && Array.isArray(pendingResponse.data.join_requests)) {
-        // Similar debugging for alternative response format
+
         console.log(`Found ${pendingResponse.data.join_requests.length} pending join requests (alt format)`);
 
         if (pendingResponse.data.join_requests.length > 0) {
@@ -506,15 +478,14 @@
           console.log("Join request ID (alt):", sampleRequest.id);
           console.log("Join request user_id (alt):", sampleRequest.user_id);
           console.log("Join request username field value (alt):", sampleRequest.username);
-        }          // Format users from join requests (alternative response format)
+        }          
         pendingMembers = pendingResponse.data.join_requests.map((request, index) => {
           console.log(`Processing alt request for user_id: ${request.user_id}, found username: ${request.username || "MISSING"}`);
 
-          // The backend now returns real user data, so prioritize that
           const member = {
             id: request.id || request.user_id || `pending-alt-${index}-${Date.now()}`,
             user_id: request.user_id || "",
-            // Prioritize real username from backend, fallback only if not available
+
             username: request.username || `user_${(request.user_id || "").substring(0, 8)}`,
             name: request.name || request.username || `User ${(request.user_id || "").substring(0, 8)}`,
             role: "pending",
@@ -526,7 +497,6 @@
           return member;
         });
 
-        // Process avatars for pending members
         pendingMembers = processMembersAvatars(pendingMembers);
       } else {
         console.log("No valid join requests found in the response");
@@ -574,7 +544,6 @@
     }
   }
 
-  // Update the tabItems array with the new tabs - make it reactive to ensure it's evaluated after authState
   $: {
     console.log("Re-evaluating tabItems with authState:",
       authState ? { isAuthenticated: authState.is_authenticated, userId: authState.user_id } : "undefined",
@@ -599,10 +568,9 @@
     }
   ].filter(tab => !tab.condition || tab.condition());
 
-  // Function to handle join/leave community toggle
   function toggleJoinCommunity() {
     if (isMember) {
-      // Use removeMember function from API instead of leaveCommunity
+
       removeMember(communityId, authState.user_id || "")
         .then(() => {
           isMember = false;
@@ -613,12 +581,11 @@
           toastStore.showToast("Failed to leave community", "error");
         });
     } else {
-      // Use requestToJoin function instead of joinCommunity
+
       handleJoinRequest();
     }
   }
 
-  // Handle thread click - navigate to thread detail
   function handleThreadClick(event) {
     const tweet = event.detail;
     if (!tweet || !tweet.id) {
@@ -629,24 +596,19 @@
     const threadId = tweet.id;
     console.log(`Navigating to thread detail: ${threadId}`);
 
-    // Construct the URL for thread detail
     const href = `/thread/${threadId}`;
 
-    // Use navigation approach
     try {
-      // First try to use history API for SPA navigation
+
       window.history.pushState({threadId}, "", href);
 
-      // Dispatch a custom navigation event to trigger router update
       const navEvent = new CustomEvent("navigate", {
         detail: { href, threadId }
       });
       window.dispatchEvent(navEvent);
 
-      // Trigger popstate as a fallback
       window.dispatchEvent(new PopStateEvent("popstate", {}));
 
-      // If nothing works, reload the page after a short delay
       setTimeout(() => {
         if (window.location.pathname !== href) {
           console.warn("Navigation did not update the URL, forcing page reload");
@@ -655,25 +617,22 @@
       }, 300);
     } catch (error) {
       console.error("Error in navigation:", error);
-      window.location.href = href; // Direct navigation as fallback
+      window.location.href = href; 
     }
   }
 
-  // Check if the user can post in this community
   function canPostInCommunity(): boolean {
-    // User must be logged in, a member, and community must be approved
+
     return authState.is_authenticated && isMember && community?.is_approved === true;
   }
 
-  // Function to handle thread creation
   function handleCreatePost() {
-    // Only allow post creation if community is approved
+
     if (!community?.is_approved) {
       toastStore.showToast("This community is pending approval. You cannot create posts yet.", "warning");
       return;
     }
 
-    // Navigate to create post page with community context
     const href = `/create-post?community=${communityId}`;
     window.location.href = href;
   }
@@ -685,11 +644,9 @@
         return;
       }
 
-      // Call the API to approve the join request
       await approveJoinRequest(communityId, requestId);
       toastStore.showToast("Join request approved successfully", "success");
 
-      // Reload members and pending members
       await Promise.all([
         loadMembers(),
         loadPendingMembers()
@@ -707,11 +664,9 @@
         return;
       }
 
-      // Call the API to reject the join request
       await rejectJoinRequest(communityId, requestId);
       toastStore.showToast("Join request rejected", "success");
 
-      // Reload pending members
       await loadPendingMembers();
     } catch (error) {
       logger.error("Error rejecting join request:", error);
@@ -719,12 +674,10 @@
     }
   }
 
-  // Check if user can manage the community (approve/reject join requests, etc.)
   function canManageCommunity(): boolean {
-    // Safety check - if authState is undefined, return false
+
     if (!authState) return false;
 
-    // Debug the owner check
     console.log("DEBUG canManageCommunity:", {
       userRole,
       authUserId: authState.user_id,
@@ -732,8 +685,6 @@
       isAuthUserCreator: community?.creator_id === authState.user_id
     });
 
-    // User must be logged in and have appropriate role
-    // Ownership is determined either by userRole or by being the creator
     const isOwner = userRole === "owner" ||
                     (community?.creator_id && community.creator_id === authState.user_id);
     const isAdmin = userRole === "admin";
@@ -744,16 +695,14 @@
     return canManage;
   }
 
-  // Handle kicking a member from the community
   async function handleKickMember(userId: string) {
     if (!communityId || !authState.user_id) return;
 
     try {
-      // Call the API to remove the member
+
       await removeMember(communityId, userId);
       toastStore.showToast("Member removed from community", "success");
 
-      // Refresh the members list
       await loadMembers();
     } catch (error) {
       logger.error("Error kicking member:", error);
@@ -765,12 +714,8 @@
     try {
       isLoadingTopThreads = true;
 
-      // First try to fetch from backend API for top threads
       try {
-        // Here we would call a specific API endpoint for top threads if available
-        // For example: const response = await fetch(`${API_BASE_URL}/communities/${communityId}/top-threads`);
 
-        // For now, we'll use the existing threads and sort them by likes
         console.log("Sorting threads by likes to get top threads");
         topThreads = [...threads].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 10);
       } catch (apiError) {
@@ -788,8 +733,7 @@
   async function loadLatestThreads() {
     try {
       isLoadingLatestThreads = true;
-      // Here you would call an API to get latest threads
-      // For now, we'll just sort the existing threads by date
+
       latestThreads = [...threads].sort((a, b) => {
         const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
         const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -803,23 +747,22 @@
   }  async function loadMediaThreads() {
     try {
       isLoadingMediaThreads = true;
-      
-      // Reset for initial load
+
       mediaPage = 1;
       hasMoreMedia = true;
-        // Generate mock media content for demonstration
+
       const mockMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => ({
         id: `media-${index + 1}`,
         content: `Mock media post ${index + 1} with some interesting content about the community. This could be a photo from a recent event, artwork shared by members, or any visual content related to our community discussions.`,
-        timestamp: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), // Random date within last 30 days
+        timestamp: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), 
         username: `user${Math.floor(Math.random() * 100)}`,
         display_name: `Community User ${index + 1}`,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${index}`,
+        avatar: `https:
         likes: Math.floor(Math.random() * 100),
         comments: Math.floor(Math.random() * 50),
         reposts: Math.floor(Math.random() * 25),
         views: Math.floor(Math.random() * 500),
-        media_url: `https://picsum.photos/400/300?random=${index + 1}`,
+        media_url: `https:
         media_type: (Math.random() > 0.7 ? 'video' : 'image') as 'image' | 'video'
       }));
 
@@ -836,8 +779,7 @@
     try {
       isLoadingMoreMedia = true;
       mediaPage += 1;      
-      
-      // Generate more mock media content
+
       const moreMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => {
         const globalIndex = (mediaPage - 1) * 6 + index + 1;
         return {
@@ -846,21 +788,20 @@
           timestamp: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
           username: `user${Math.floor(Math.random() * 100)}`,
           display_name: `Community User ${globalIndex}`,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${globalIndex}`,
+          avatar: `https:
           likes: Math.floor(Math.random() * 100),
           comments: Math.floor(Math.random() * 50),
           reposts: Math.floor(Math.random() * 25),
           views: Math.floor(Math.random() * 500),
-          media_url: `https://picsum.photos/400/300?random=${globalIndex}`,
+          media_url: `https:
           media_type: (Math.random() > 0.7 ? 'video' : 'image') as 'image' | 'video'
         };
       });
 
       mediaThreads = [...mediaThreads, ...moreMediaItems];
 
-      // Reset page counter after reaching 10 pages to simulate cycling/infinite scroll
       if (mediaPage >= 10) {
-        mediaPage = 0; // Reset to create cycling effect
+        mediaPage = 0; 
       }
 
       isLoadingMoreMedia = false;
@@ -870,7 +811,6 @@
     }
   }
 
-  // Scroll handler for infinite scroll
   function handleMediaScroll(event: Event) {
     const target = event.target as Element;
     if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
@@ -882,20 +822,13 @@
     try {
       isLoadingTopMembers = true;
 
-      // First try to fetch from backend API for top members
       try {
-        // Here we would call a specific API endpoint for top members if available
-        // For example: const response = await fetch(`${API_BASE_URL}/communities/${communityId}/top-members`);
 
-        // For now, we'll check if we have member data and sort it by a proxy for popularity
-        // In a real application, you would have a dedicated API endpoint for this
         if (members && members.length > 0) {
           console.log("Selecting top members from available members");
 
-          // Since we don't have follower count in our current data model,
-          // we'll just take the first 3 members, prioritizing admins and moderators
           const sortedMembers = [...members].sort((a, b) => {
-            // First prioritize by role (admin > moderator > member)
+
             const roleValueMap = { owner: 3, admin: 2, moderator: 1, member: 0 };
             const roleValueA = roleValueMap[a.role] || 0;
             const roleValueB = roleValueMap[b.role] || 0;
@@ -1072,7 +1005,7 @@
                       </div>
                     </div>
                   </div>
-                  
+
                   <div class="media-post-content">
                     <p>{mediaItem.content}</p>
                     <div class="media-container">
@@ -1091,7 +1024,7 @@
                       {/if}
                     </div>
                   </div>
-                  
+
                   <div class="media-post-actions">
                     <div class="action-button">
                       <MessageSquareIcon size="16" />
@@ -1123,14 +1056,14 @@
                   </div>
                 </div>
               {/each}
-              
+
               {#if isLoadingMoreMedia}
                 <div class="loading-indicator">
                   <Spinner size="medium" />
                   <p>Loading more media...</p>
                 </div>
               {/if}
-              
+
               {#if hasMoreMedia && !isLoadingMoreMedia && mediaThreads.length > 0}
                 <div class="load-more-container">
                   <Button variant="outlined" on:click={loadMoreMedia}>
@@ -1138,7 +1071,7 @@
                   </Button>
                 </div>
               {/if}
-              
+
               {#if !hasMoreMedia && mediaThreads.length > 0}
                 <div class="end-of-content">
                   <p>You've reached the end of the media content!</p>
@@ -1369,7 +1302,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-  }  /* New media posts styles */
+  }  
   .media-posts-container {
     display: flex;
     flex-direction: column;
@@ -1516,7 +1449,7 @@
     text-align: center;
     color: var(--text-secondary);
     padding: var(--space-6);
-  }  /* Responsive adjustments for the media posts */
+  }  
   @media (max-width: 768px) {
 
     .media-post-card {
@@ -1574,7 +1507,6 @@
     padding: var(--space-6);
   }
 
-  /* Responsive adjustments for the media posts */
   @media (max-width: 768px) {
     .media-post-card {
       padding: var(--space-3);

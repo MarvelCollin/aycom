@@ -55,7 +55,7 @@ export interface MembershipStatus {
   status: "member" | "pending" | "none";
 }
 
-// Create community request interface
+
 export interface CreateCommunityRequest {
   name: string;
   description: string;
@@ -65,7 +65,7 @@ export interface CreateCommunityRequest {
   categories: string[];
 }
 
-// API methods
+
 export const createCommunity = async (communityData: CreateCommunityRequest): Promise<Community> => {
   const response = await axios.post(`${API_URL}/v1/communities`, communityData);
   return response.data.data;

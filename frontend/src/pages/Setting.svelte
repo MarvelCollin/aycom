@@ -81,7 +81,6 @@
   onMount(async () => {
     isLoading = true;
 
-    // Load font preferences from localStorage
     try {
       const storedFontSize = localStorage.getItem("fontSize");
       if (storedFontSize) {
@@ -124,11 +123,9 @@
       isLoading = false;
     }
 
-    // Load blocked users
     await loadBlockedUsers();
   });
 
-  // Function to load blocked users from API
   async function loadBlockedUsers() {
     isLoadingBlockedUsers = true;
     try {
@@ -141,7 +138,6 @@
     }
   }
 
-  // Apply font size to body
   function applyFontSize(size) {
     if (typeof document !== "undefined") {
       document.documentElement.classList.remove("font-small", "font-medium", "font-large");
@@ -149,20 +145,17 @@
     }
   }
 
-  // Apply font color to body
   function applyFontColor(color) {
     if (typeof document !== "undefined") {
       document.documentElement.classList.remove("text-default", "text-blue", "text-green", "text-purple");
       document.documentElement.classList.add(`text-${color}`);
 
-      // Apply to HTML element as well for better specificity
       const htmlElement = document.querySelector("html");
       if (htmlElement) {
         htmlElement.classList.remove("text-default", "text-blue", "text-green", "text-purple");
         htmlElement.classList.add(`text-${color}`);
       }
 
-      // Apply color directly to key elements
       if (color !== "default") {
         setTimeout(() => {
           const headings = document.querySelectorAll(".settings-section-title, .page-title");
@@ -182,7 +175,6 @@
     }
   }
 
-  // Handle font size change
   function handleFontSizeChange(event) {
     const newSize = event.target.value;
     fontSize = newSize;
@@ -190,26 +182,23 @@
     applyFontSize(newSize);
   }
 
-  // Handle font color change
   function handleFontColorChange(event) {
     const newColor = event.target.value;
     fontColor = newColor;
     localStorage.setItem("fontColor", newColor);
     applyFontColor(newColor);
 
-    // Force a refresh to make sure the colors are applied immediately
     setTimeout(() => {
       if (typeof document !== "undefined") {
-        // This will trigger style recalculation and apply the new colors
+
         document.body.style.display = "none";
-        // This forces a reflow
+
         void document.body.offsetHeight;
         document.body.style.display = "";
       }
     }, 0);
   }
 
-  // Handle unblock user - now uses the real API
   async function handleUnblockUser(userId) {
     try {
       const success = await unblockUser(userId);
@@ -225,10 +214,9 @@
     }
   }
 
-  // Handle account deactivation
   function handleDeactivateAccount() {
     if (confirm("Are you sure you want to deactivate your account? This action can be reversed by logging in again within 30 days.")) {
-      // Would call API in real implementation
+
       toastStore.showToast("Account deactivation initiated", "info");
     }
   }
@@ -639,7 +627,6 @@
     color: var(--text-secondary);
   }
 
-  /* Account Deactivation */
   .account-action-container {
     display: flex;
     justify-content: space-between;
@@ -674,7 +661,6 @@
     background-color: var(--color-danger-dark);
   }
 
-  /* Blocked Accounts */
   .blocked-accounts-list {
     display: flex;
     flex-direction: column;
@@ -728,7 +714,6 @@
     padding: var(--space-4);
   }
 
-  /* Responsive adjustments */
   @media (max-width: 768px) {
     .account-action-container,
     .settings-toggle-group {

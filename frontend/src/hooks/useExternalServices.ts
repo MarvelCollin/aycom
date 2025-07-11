@@ -103,13 +103,12 @@ export function useExternalServices() {
     isDarkMode: boolean,
     callback: (response: IGoogleCredentialResponse) => void
   ): (() => void) => {
-    // Store the callback in the window object
+
     (window as ICustomWindow).handleGoogleCredentialResponse = (response) => {
       console.log("Google credential response received:", response);
       callback(response);
     };
 
-    // Check if Google API is already loaded
     if ((window as ICustomWindow).google?.accounts) {
       console.log("Google accounts API already loaded, initializing...");
       initializeGoogleAuth(buttonId, isDarkMode);

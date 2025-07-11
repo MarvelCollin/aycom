@@ -57,7 +57,7 @@ type ThreadServiceClient interface {
 	GetUserMediaThreads(userID string, page, limit int) ([]*Thread, error)
 }
 
-// Thread represents a thread in the system
+
 type Thread struct {
 	ID               string                 `json:"id"`
 	Content          string                 `json:"content"`
@@ -88,7 +88,7 @@ type Thread struct {
 	ParentUser       map[string]interface{} `json:"parent_user,omitempty"`
 }
 
-// Reply represents a reply to a thread or another reply
+
 type Reply struct {
 	ID                string                 `json:"id"`
 	Content           string                 `json:"content"`
@@ -240,7 +240,7 @@ func (c *GRPCThreadServiceClient) GetThreadByID(threadID string, userID string) 
 		thread.IsBookmarked = true
 	}
 
-	// If this thread has a parent ID, fetch the parent thread information
+	
 	if thread.ParentID != "" {
 		parentResp, parentErr := c.client.GetThreadById(ctx, &threadProto.GetThreadRequest{
 			ThreadId: thread.ParentID,
@@ -249,7 +249,7 @@ func (c *GRPCThreadServiceClient) GetThreadByID(threadID string, userID string) 
 		if parentErr == nil && parentResp != nil && parentResp.Thread != nil {
 			parentThread := convertProtoToThread(parentResp.Thread)
 			if parentThread != nil {
-				// Add parent thread information
+				
 				thread.ParentContent = parentThread.Content
 				thread.ParentUser = map[string]interface{}{
 					"id":                  parentThread.UserID,
@@ -387,17 +387,17 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Add user ID to context metadata if provided
+	
 	if userID != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
 	}
 
-	// Call the GetAllThreads method but use it for search functionality
-	// This is a temporary solution until a dedicated SearchThreads RPC is added to the proto
+	
+	
 	resp, err := c.client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
-		// Request a larger number of threads to have enough for fuzzy matching
+		
 		Page:  1,
-		Limit: 100, // Fetch more threads to apply fuzzy matching and then paginate
+		Limit: 100, 
 	})
 
 	if err != nil {
@@ -406,7 +406,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 
 	var allThreads []*Thread
 
-	// If query is empty, return all threads without filtering
+	
 	if query == "" {
 		allThreads = make([]*Thread, 0, len(resp.Threads))
 		for _, t := range resp.Threads {
@@ -416,12 +416,12 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 			}
 		}
 	} else {
-		// If query is provided, use Damerau-Levenshtein fuzzy matching
+		
 		queryLower := strings.ToLower(query)
 		allThreads = make([]*Thread, 0)
 
-		// Define fuzzy matching threshold (0.0 to 1.0, where 1.0 is exact match)
-		// Using a lower threshold to catch more potential matches
+		
+		
 		const similarityThreshold = 0.3
 
 		for _, t := range resp.Threads {
@@ -434,7 +434,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 				continue
 			}
 
-			// Check content with improved logging
+			
 			contentMatch := false
 			var bestWordScore float64 = 0
 			var bestWord string = ""
@@ -448,7 +448,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 						bestWord = word
 					}
 
-					// Check for both fuzzy matching and direct substring matches
+					
 					directMatch := strings.Contains(word, queryLower)
 					if score >= similarityThreshold || directMatch {
 						contentMatch = true
@@ -459,7 +459,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 				}
 			}
 
-			// Check hashtags with improved logging
+			
 			hashtagMatch := false
 			var bestHashtagScore float64 = 0
 			var bestHashtag string = ""
@@ -474,7 +474,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 						bestHashtag = hashtag
 					}
 
-					// Check for both fuzzy matching and direct substring matches
+					
 					directMatch := strings.Contains(hashtagLower, queryLower)
 					if score >= similarityThreshold || directMatch {
 						hashtagMatch = true
@@ -485,7 +485,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 				}
 			}
 
-			// Additional direct content check on the full content
+			
 			directContentMatch := false
 			if thread.Content != "" {
 				directContentMatch = strings.Contains(strings.ToLower(thread.Content), queryLower)
@@ -495,20 +495,20 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 				}
 			}
 
-			// Include thread if either content or hashtags match
+			
 			if contentMatch || hashtagMatch {
 				log.Printf("---> MATCHED thread ID=%s (content=%.2f, hashtag=%.2f, query='%s')",
 					thread.ID, bestWordScore, bestHashtagScore, queryLower)
 				allThreads = append(allThreads, thread)
 			} else if bestWordScore > 0 || bestHashtagScore > 0 {
-				// Log near misses for debugging
+				
 				log.Printf("NEAR MISS thread ID=%s - best content word: '%s' (%.2f), best hashtag: '%s' (%.2f), query='%s'",
 					thread.ID, bestWord, bestWordScore, bestHashtag, bestHashtagScore, queryLower)
 			}
 		}
 	}
 
-	// Apply pagination to the final results
+	
 	startIndex := (page - 1) * limit
 	endIndex := startIndex + limit
 
@@ -522,7 +522,7 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 	return allThreads[startIndex:endIndex], nil
 }
 
-// Helper function to convert proto thread response to Thread model
+
 func convertProtoThreadToThread(t *threadProto.ThreadResponse) *Thread {
 	if t == nil || t.Thread == nil {
 		return nil
@@ -541,17 +541,17 @@ func convertProtoThreadToThread(t *threadProto.ThreadResponse) *Thread {
 		IsBookmarked:  t.BookmarkedByUser,
 	}
 
-	// Set creation time
+	
 	if t.Thread.CreatedAt != nil {
 		thread.CreatedAt = t.Thread.CreatedAt.AsTime()
 	}
 
-	// Set update time
+	
 	if t.Thread.UpdatedAt != nil {
 		thread.UpdatedAt = t.Thread.UpdatedAt.AsTime()
 	}
 
-	// Set media
+	
 	if len(t.Thread.Media) > 0 {
 		media := make([]Media, len(t.Thread.Media))
 		for i, m := range t.Thread.Media {
@@ -564,14 +564,14 @@ func convertProtoThreadToThread(t *threadProto.ThreadResponse) *Thread {
 		thread.Media = media
 	}
 
-	// Set user information
+	
 	if t.User != nil {
-		// Only set username if it's not empty
+		
 		if t.User.Username != "" {
 			thread.Username = t.User.Username
 		}
 
-		// Only set display name if it's not empty
+		
 		if t.User.Name != "" {
 			thread.DisplayName = t.User.Name
 		}
@@ -579,7 +579,7 @@ func convertProtoThreadToThread(t *threadProto.ThreadResponse) *Thread {
 		thread.ProfilePicture = t.User.ProfilePictureUrl
 	}
 
-	// Set IsPinned if available
+	
 	if t.Thread.IsPinned != nil {
 		thread.IsPinned = *t.Thread.IsPinned
 	}
@@ -746,7 +746,7 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 
 		username := "anonymous"
 		displayName := "User"
-		profilePicURL := "https://secure.gravatar.com/avatar/0?d=mp"
+		profilePicURL := "https:
 
 		if replyResp.User != nil {
 			user := replyResp.User
@@ -1294,7 +1294,7 @@ func convertProtoToThread(t any) *Thread {
 			thread.LikeCount = int(tr.LikesCount)
 			thread.ReplyCount = int(tr.RepliesCount)
 			thread.RepostCount = int(tr.RepostsCount)
-			// Extract bookmark count using reflection to handle field name differences
+			
 			thread.BookmarkCount = extractBookmarkCountFromAny(tr)
 			thread.IsLiked = tr.LikedByUser
 			thread.IsReposted = tr.RepostedByUser
@@ -1317,12 +1317,12 @@ func convertProtoToThread(t any) *Thread {
 		}
 
 		if tr.User != nil {
-			// Only set username if it's not empty
+			
 			if tr.User.Username != "" {
 				thread.Username = tr.User.Username
 			}
 
-			// Only set display name if it's not empty
+			
 			if tr.User.Name != "" {
 				thread.DisplayName = tr.User.Name
 			}
@@ -1484,15 +1484,15 @@ func convertProtoToThread(t any) *Thread {
 	return thread
 }
 
-// Helper function to extract bookmark count from any type using reflection
+
 func extractBookmarkCountFromAny(obj any) int {
 	if obj == nil {
 		return 0
 	}
 
-	// Try to access with type assertion first
+	
 	if tr, ok := obj.(*threadProto.ThreadResponse); ok {
-		// Try direct method call if it exists
+		
 		tValue := reflect.ValueOf(tr)
 		getBookmarkCountMethod := tValue.MethodByName("GetBookmarkCount")
 		if getBookmarkCountMethod.IsValid() {
@@ -1502,7 +1502,7 @@ func extractBookmarkCountFromAny(obj any) int {
 			}
 		}
 
-		// Try direct field access
+		
 		v := reflect.ValueOf(tr).Elem()
 		field := v.FieldByName("BookmarkCount")
 		if field.IsValid() {
@@ -1510,7 +1510,7 @@ func extractBookmarkCountFromAny(obj any) int {
 		}
 	}
 
-	// Generic reflection approach
+	
 	v := reflect.ValueOf(obj)
 	if v.Kind() == reflect.Ptr && !v.IsNil() {
 		v = v.Elem()
@@ -1522,7 +1522,7 @@ func extractBookmarkCountFromAny(obj any) int {
 			return int(field.Int())
 		}
 
-		// Try JSON tag matching
+		
 		for i := 0; i < v.NumField(); i++ {
 			field := v.Type().Field(i)
 			tag := field.Tag.Get("json")
@@ -1575,7 +1575,7 @@ func convertProtoReplyToReply(r *threadProto.ReplyResponse) *Reply {
 		reply.IsVerified = r.User.IsVerified
 	}
 
-	// Include parent information if available
+	
 	if r.ParentContent != nil {
 		reply.ParentContent = *r.ParentContent
 	}
@@ -1598,28 +1598,28 @@ func (c *GRPCThreadServiceClient) GetThreadsByHashtag(hashtag string, userID str
 		return nil, fmt.Errorf("thread service client not initialized")
 	}
 
-	// Use SearchThreads as a workaround since the GetThreadsByHashtag RPC is not yet compiled
+	
 	threads, err := c.SearchThreads(hashtag, userID, page, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get threads by hashtag: %w", err)
 	}
 
-	// Filter results to only include threads with the exact hashtag
+	
 	var filteredThreads []*Thread
 
-	// Clean the hashtag to ensure consistent matching
+	
 	cleanHashtag := strings.TrimPrefix(hashtag, "#")
 
 	for _, thread := range threads {
-		// Skip nil threads
+		
 		if thread == nil {
 			continue
 		}
 
-		// Check if thread has this hashtag
+		
 		hasHashtag := false
 
-		// Look for the hashtag in the thread's hashtags list
+		
 		if thread.Hashtags != nil {
 			for _, h := range thread.Hashtags {
 				if strings.EqualFold(h, cleanHashtag) {
@@ -1629,9 +1629,9 @@ func (c *GRPCThreadServiceClient) GetThreadsByHashtag(hashtag string, userID str
 			}
 		}
 
-		// Also check if the hashtag appears in the content
+		
 		if !hasHashtag && thread.Content != "" {
-			// Look for the hashtag in the content (with # prefix)
+			
 			hashtagPattern := fmt.Sprintf("#%s\\b", regexp.QuoteMeta(cleanHashtag))
 			if matched, _ := regexp.MatchString(hashtagPattern, thread.Content); matched {
 				hasHashtag = true
@@ -1651,14 +1651,14 @@ func (c *GRPCThreadServiceClient) GetUserMediaThreads(userID string, page, limit
 		return nil, fmt.Errorf("thread service client not initialized")
 	}
 
-	// This is a simplified implementation - in a real service you would have a specific method for media posts
-	// For now, we'll get all threads by the user and filter for ones with media
+	
+	
 	threads, err := c.GetThreadsByUserID(userID, "", page, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	// Filter for threads with media
+	
 	mediaThreads := make([]*Thread, 0)
 	for _, thread := range threads {
 		if len(thread.Media) > 0 {

@@ -475,17 +475,15 @@
             if (postsData && postsData.error) {
               const errorMsg = typeof postsData.error === 'string' ? postsData.error : 'Failed to load posts';
               toastStore.showToast(errorMsg, "error");
-              
-              // If we have a 401 error, user might need to login again
+
               if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
                 console.log("Authentication issue detected, user may need to log in again");
-                // You might want to redirect to login page here
+
               }
-              
-              // If we have a 404 error, the user might not exist or have no posts
+
               if (errorMsg.includes('404') || errorMsg.includes('not_found')) {
                 console.log("User not found or has no posts");
-                // Handle this gracefully - maybe show a "no posts yet" message
+
               }
             }
           }
@@ -532,36 +530,35 @@
         }
       } else if (tab === "media") {
         try {
-          // First try to get real media posts through the API
+
           const mediaData = await getUserMedia(profileUserId);
           if (mediaData && mediaData.success && mediaData.threads && mediaData.threads.length > 0) {
             media = mediaData.threads || [];
             console.log(`Loaded ${media.length} media posts from API`);
           } else {
             console.log("No media posts found from API, generating mock media data");
-            
-            // Generate mock media content for demonstration with proper Thread type
+
             const mockMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => {
               const timestamp = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000);
               return {
                 id: `media-${profileUserId}-${index + 1}`,
                 content: `Media post ${index + 1} with visual content related to ${profileData.displayName}'s activities and interests.`,
                 created_at: timestamp.toISOString(),
-                timestamp: timestamp.toISOString(), // Add timestamp for Thread compatibility
+                timestamp: timestamp.toISOString(), 
                 username: profileData.username,
                 display_name: profileData.displayName,
-                name: profileData.displayName, // Add name for Thread compatibility
+                name: profileData.displayName, 
                 avatar: profileData.profilePicture || DEFAULT_AVATAR,
                 likes_count: Math.floor(Math.random() * 100),
                 replies_count: Math.floor(Math.random() * 50),
                 reposts_count: Math.floor(Math.random() * 25),
                 views_count: Math.floor(Math.random() * 500),
-                likes: Math.floor(Math.random() * 100), // Add likes for Thread compatibility
-                replies: Math.floor(Math.random() * 50), // Add replies for Thread compatibility
-                reposts: Math.floor(Math.random() * 25), // Add reposts for Thread compatibility
+                likes: Math.floor(Math.random() * 100), 
+                replies: Math.floor(Math.random() * 50), 
+                reposts: Math.floor(Math.random() * 25), 
                 media: [{
                   type: Math.random() > 0.7 ? "video" : "image",
-                  url: `https://picsum.photos/400/300?random=${profileUserId}-${index + 1}`,
+                  url: `https:
                   id: `media-item-${index}`
                 }],
                 user_id: profileUserId,
@@ -571,35 +568,34 @@
                 is_bookmarked: Math.random() > 0.7
               };
             });
-            
+
             media = mockMediaItems;
             console.log(`Generated ${media.length} mock media posts`);
           }
         } catch (mediaError) {
           console.error("Exception loading media:", mediaError);
-          
-          // Generate mock media as fallback with proper Thread type
+
           const mockMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => {
             const timestamp = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000);
             return {
               id: `media-${profileUserId}-${index + 1}`,
               content: `Media post ${index + 1} with visual content related to ${profileData.displayName}'s activities and interests.`,
               created_at: timestamp.toISOString(),
-              timestamp: timestamp.toISOString(), // Add timestamp for Thread compatibility
+              timestamp: timestamp.toISOString(), 
               username: profileData.username,
               display_name: profileData.displayName,
-              name: profileData.displayName, // Add name for Thread compatibility
+              name: profileData.displayName, 
               avatar: profileData.profilePicture || DEFAULT_AVATAR,
               likes_count: Math.floor(Math.random() * 100),
               replies_count: Math.floor(Math.random() * 50),
               reposts_count: Math.floor(Math.random() * 25),
               views_count: Math.floor(Math.random() * 500),
-              likes: Math.floor(Math.random() * 100), // Add likes for Thread compatibility
-              replies: Math.floor(Math.random() * 50), // Add replies for Thread compatibility
-              reposts: Math.floor(Math.random() * 25), // Add reposts for Thread compatibility
+              likes: Math.floor(Math.random() * 100), 
+              replies: Math.floor(Math.random() * 50), 
+              reposts: Math.floor(Math.random() * 25), 
               media: [{
                 type: Math.random() > 0.7 ? "video" : "image",
-                url: `https://picsum.photos/400/300?random=${profileUserId}-${index + 1}`,
+                url: `https:
                 id: `media-item-${index}`
               }],
               user_id: profileUserId,
@@ -609,7 +605,7 @@
               is_bookmarked: Math.random() > 0.7
             };
           });
-          
+
           media = mockMediaItems;
           console.log(`Generated ${media.length} fallback mock media posts`);
         }
@@ -978,12 +974,11 @@
 
   function filterPosts(posts) {
     return posts.filter(post => {
-      // If showing pinned only and post is not pinned, filter out
+
       if (showPinnedOnly && !post.is_pinned) {
         return false;
       }
 
-      // If search query is present, check if content includes the query
       if (searchQuery && post.content && typeof post.content === 'string' && 
           !post.content.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
@@ -1531,7 +1526,7 @@
                         </div>
                       </div>
                     </div>
-                    
+
                     <div class="media-post-content">
                       <p>{mediaItem.content}</p>
                       <div class="media-container">
@@ -1552,7 +1547,7 @@
                         {/if}
                       </div>
                     </div>
-                    
+
                     <div class="media-post-actions">
                       <div class="action-button">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2418,7 +2413,6 @@
     color: var(--color-primary);
   }
 
-  /* Media posts styles */
   .media-posts-container {
     display: flex;
     flex-direction: column;
@@ -2555,7 +2549,6 @@
     color: var(--text-primary);
   }
 
-  /* Responsive adjustments for the media posts */
   @media (max-width: 768px) {
     .media-post-card {
       padding: var(--space-3);

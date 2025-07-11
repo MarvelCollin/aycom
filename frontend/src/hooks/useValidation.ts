@@ -1,7 +1,7 @@
 import type { IDateOfBirth } from "../interfaces/IAuth";
 
 export function useValidation() {
-  // Validate name
+
   const validateName = (name: string): string => {
     const nameRegex = /^[a-zA-Z\s]+$/;
     if (!name) {
@@ -16,7 +16,6 @@ export function useValidation() {
     return "";
   };
 
-  // Validate username
   const validateUsername = (username: string): string => {
     if (!username) {
       return "Username is required";
@@ -30,7 +29,6 @@ export function useValidation() {
     return "";
   };
 
-  // Validate email
   const validateEmail = (email: string): string => {
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
     if (!email) {
@@ -41,7 +39,6 @@ export function useValidation() {
     return "";
   };
 
-  // Validate password
   const validatePassword = (password: string): string[] => {
     const errors: string[] = [];
 
@@ -73,7 +70,6 @@ export function useValidation() {
     return errors;
   };
 
-  // Validate confirm password
   const validateConfirmPassword = (password: string, confirmPassword: string): string => {
     if (!confirmPassword) {
       return "Confirm password is required";
@@ -83,7 +79,6 @@ export function useValidation() {
     return "";
   };
 
-  // Validate gender
   const validateGender = (gender: string): string => {
     if (!gender) {
       return "Gender is required";
@@ -91,7 +86,6 @@ export function useValidation() {
     return "";
   };
 
-  // Validate date of birth
   const validateDateOfBirth = (dateOfBirth: IDateOfBirth, months: string[]): string => {
     if (!dateOfBirth.month || !dateOfBirth.day || !dateOfBirth.year) {
       return "Date of birth is required";
@@ -108,7 +102,7 @@ export function useValidation() {
     const monthDiff = today.getMonth() - birthDate.getMonth();
 
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+      age
     }
 
     if (age < 13) {
@@ -118,7 +112,6 @@ export function useValidation() {
     return "";
   };
 
-  // Validate security question
   const validateSecurityQuestion = (question: string, answer: string): string => {
     if (!question) {
       return "Security question is required";
@@ -130,7 +123,6 @@ export function useValidation() {
     return "";
   };
 
-  // Format date of birth for API
   const formatDateOfBirth = (dateOfBirth: IDateOfBirth, months: string[]): string => {
     const month = (months.indexOf(dateOfBirth.month) + 1).toString().padStart(2, "0");
     const day = dateOfBirth.day.padStart(2, "0");

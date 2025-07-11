@@ -87,7 +87,7 @@ export function generateFilePreview(file: File): IMedia {
   } else if (file.type.startsWith("video/")) {
     type = "video";
   } else {
-    // Default to image for unsupported types
+
     type = "image";
   }
 
@@ -137,7 +137,7 @@ export function isSupabaseStorageUrl(url: string): boolean {
            (urlObj.pathname.includes("/storage/v1/object/public/") ||
             urlObj.pathname.includes("/storage/v1/s3/"));
   } catch (error) {
-    // If the URL is not valid, check with a simple string match
+
     return url.includes("supabase.co/storage/v1/object/public/") ||
            url.includes("supabase.co/storage/v1/s3/");
   }
@@ -146,20 +146,17 @@ export function isSupabaseStorageUrl(url: string): boolean {
 export function formatStorageUrl(url: string | null): string {
   if (!url) return "";
 
-  // For debugging
   console.log("Original URL:", url);
 
-  // If the URL is already complete, return it as is
   if (url.startsWith("http://") || url.startsWith("https://")) {
-    // Fix issue with double slashes in paths
+
     if (url.includes("//storage/v1/s3/")) {
       return url.replace("//storage/v1/s3/", "/storage/v1/s3/");
     }
 
-    // Check if it's a valid URL with correct access path
     try {
       const urlObj = new URL(url);
-      // If URL contains "object/public" but not "s3", convert it to use s3 endpoint
+
       if (url.includes("/storage/v1/object/public/") && !url.includes("/storage/v1/s3/")) {
         return url.replace("/storage/v1/object/public/", "/storage/v1/s3/");
       }
@@ -205,27 +202,19 @@ export function formatStorageUrl(url: string | null): string {
     }
   }
 
-  // Special case for community uploads with specific patterns
   if (url.includes("community/community_")) {
     return `${supabaseUrl}/storage/v1/s3/uploads/${url}`;
   }
 
-  // Handle URLs with user IDs or specific patterns
   if (url.includes("_1/")) {
-    // This is likely a user-specific path in the tpaweb bucket
+
     return `${supabaseUrl}/storage/v1/s3/${url}`;
   }
 
-  // Default case - ensure we attach the full URL
-  const cleanPath = url.replace(/^\//, ""); // Remove leading slash if present
+  const cleanPath = url.replace(/^\
   return `${supabaseUrl}/storage/v1/s3/${cleanPath}`;
 }
 
-/**
- * Format a number with abbreviations for thousands, millions, etc.
- * @param num The number to format
- * @returns Formatted number string (e.g., 1.2K, 3.4M)
- */
 export function formatNumber(num: number): string {
   if (num === undefined || num === null) return "0";
 
@@ -242,15 +231,13 @@ export function formatNumber(num: number): string {
   const tier = Math.floor(Math.log10(absNum) / 3);
 
   if (tier >= abbreviations.length) {
-    return sign + absNum.toString(); // If number is too large, just return it as is
+    return sign + absNum.toString(); 
   }
 
   const scale = Math.pow(10, tier * 3);
   const scaled = absNum / scale;
 
-  // Format with 1 decimal place if needed, but remove .0
   const formatted = scaled.toFixed(1).replace(/\.0$/, "");
 
   return sign + formatted + abbreviations[tier];
 }
-

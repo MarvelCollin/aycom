@@ -35,7 +35,6 @@
   });  async function loadParticipants(): Promise<void> {
     try {
       logger.debug("Loading participants for chat:", chatId);
-        // Try to get participants from API first
       let participants: Participant[] = [];
       try {
         const response = await listChatParticipants(chatId);
@@ -47,7 +46,6 @@
           participants = response;
         }
 
-        // Normalize participant data structure - API returns user_id, but frontend expects id
         participants = participants.map((p: any) => ({
           id: p.id || p.user_id || p.userId || 'unknown',
           user_id: p.user_id || p.id || p.userId,
@@ -64,7 +62,6 @@
       } catch (apiError) {
         logger.warn("API call failed, trying alternative approach:", apiError);
       }
-        // If no participants from API, use the ones passed from parent
       if (participants.length === 0 && currentChatParticipants.length > 0) {
         logger.debug("Using participants from parent component:", currentChatParticipants);
         participants = currentChatParticipants;
@@ -158,7 +155,6 @@
       const response = await addChatParticipant(chatId, { user_id: user.id });
       logger.debug("Add member response:", response);
 
-      // Convert StandardUser to Participant format for consistency
       const newParticipant: Participant = {
         id: user.id,
         username: user.username,
@@ -169,16 +165,13 @@
         avatar: user.avatar || user.profile_picture_url || null
       };
 
-      // Update the participants list
       currentParticipants = [...currentParticipants, newParticipant];
 
-      // Remove from available users
       availableUsers = availableUsers.filter(u => u.id !== user.id);
 
       successMessage = `Added ${user.display_name || user.displayName || user.name || user.username} to the chat`;
       logger.debug("Member added successfully");
 
-      // Notify parent component to refresh
       onMembersUpdated();
     } catch (error) {
       logger.error("Error adding member:", error);
@@ -198,7 +191,6 @@
     isRemovingMember = true;
 
     try {
-      // Use id first, fall back to user_id if id is undefined
       const userIdToRemove = user.id || user.user_id;
       
       if (!userIdToRemove) {
@@ -210,11 +202,10 @@
       const response = await removeChatParticipant(chatId, userIdToRemove);
       logger.debug("Remove member response:", response);
 
-      // Remove from participants list using the same ID logic
       currentParticipants = currentParticipants.filter(p => {
         const participantId = p.id || p.user_id;
         return participantId !== userIdToRemove;
-      });      // Convert Participant back to StandardUser format and add to available users
+      });     
       const removedUser: StandardUser = {
         id: userIdToRemove,
         username: user.username,
@@ -227,7 +218,6 @@
         display_name: user.display_name || user.name || user.username
       };
 
-      // Add back to available users if not already there
       const userExists = availableUsers.some(u => u.id === userIdToRemove);
       if (!userExists) {
         availableUsers = [...availableUsers, removedUser];
@@ -236,7 +226,6 @@
       successMessage = `Removed ${user.display_name || user.name || user.username} from the chat`;
       logger.debug("Member removed successfully");
 
-      // Notify parent component to refresh
       onMembersUpdated();
     } catch (error) {
       logger.error("Error removing member:", error);

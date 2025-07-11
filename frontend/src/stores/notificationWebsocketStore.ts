@@ -102,10 +102,8 @@ function createNotificationWebSocketStore() {
       logger.info(`Attempting to connect to Notification WebSocket: ${wsUrl.substring(0, 50)}...`);
       console.log("[NotificationWebSocket] Connecting to:", wsUrl.substring(0, 50) + "...");
 
-      // Try to use pure WebSocket without extensions
       ws = new WebSocket(wsUrl);
 
-      // Set a connection timeout
       const connectionTimeout = setTimeout(() => {
         if (ws && ws.readyState !== WebSocket.OPEN) {
           logger.error("WebSocket connection timeout");
@@ -114,10 +112,9 @@ function createNotificationWebSocketStore() {
             ws.close();
           }
 
-          // Attempt reconnect after timeout
           attemptReconnect();
         }
-      }, 5000); // 5 second timeout
+      }, 5000); 
 
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
@@ -131,7 +128,7 @@ function createNotificationWebSocketStore() {
         }));
 
         reconnectAttempts = 0;
-        reconnectDelay = 1000; // Reset reconnect delay
+        reconnectDelay = 1000; 
       };
 
       ws.onmessage = (event) => {
@@ -139,19 +136,16 @@ function createNotificationWebSocketStore() {
           logger.debug("Notification WebSocket message received:", event.data);
           const message = JSON.parse(event.data);
 
-          // Process notifications
           if (message.type === "notification" && message.data) {
             notificationStore.addNotification(message.data as Notification);
           }
 
-          // Handle bundled notifications
           if (message.type === "notification_bundle" && Array.isArray(message.notifications)) {
             message.notifications.forEach((notification: Notification) => {
               notificationStore.addNotification(notification);
             });
           }
 
-          // Forward to any registered handlers
           messageHandlers.forEach(handler => handler(message));
         } catch (e) {
           logger.error("Error parsing notification WebSocket message:", e);
@@ -164,7 +158,6 @@ function createNotificationWebSocketStore() {
         logger.error("Notification WebSocket error:", error);
         console.error("[NotificationWebSocket] Connection error:", error);
 
-        // Log more details about the connection attempt
         console.log("[NotificationWebSocket] Connection details:", {
           url: wsUrl.substring(0, 50) + "...",
           readyState: ws?.readyState,
@@ -189,7 +182,6 @@ function createNotificationWebSocketStore() {
           timestamp: new Date().toISOString()
         });
 
-        // Log explanations for common close codes
         const closeCodeMessages: Record<number, string> = {
           1000: "Normal closure",
           1001: "Going away (page unload)",
@@ -215,8 +207,8 @@ function createNotificationWebSocketStore() {
           connected: false
         }));
 
-        if (event.code !== 1000) { // Not a normal closure
-          // Only attempt reconnect if we're on a page that requires it
+        if (event.code !== 1000) { 
+
           const currentPath = window.location.pathname;
           const notificationEnabledPaths = ["/feed", "/notifications"];
 
@@ -232,7 +224,6 @@ function createNotificationWebSocketStore() {
       logger.error("Failed to establish notification WebSocket connection:", error);
       console.error("[NotificationWebSocket] Fatal connection error:", error);
 
-      // Only attempt reconnect if we're on a page that requires it
       const currentPath = window.location.pathname;
       const notificationEnabledPaths = ["/feed", "/notifications"];
 
@@ -299,7 +290,6 @@ function createNotificationWebSocketStore() {
 
     reconnectAttempts++;
 
-    // Exponential backoff: 1s, 2s, 4s, 8s, etc., but capped at 30 seconds
     const delay = Math.min(reconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
 
     update(s => ({
@@ -330,16 +320,14 @@ function createNotificationWebSocketStore() {
     return ws !== null && ws.readyState === WebSocket.OPEN;
   };
 
-  // Diagnostic function to check WebSocket connectivity
   const testConnection = async () => {
     try {
-      // Check if backend is accessible first
+
       const token = getAuthToken();
       if (!token) {
         return { success: false, message: "No auth token available" };
       }
 
-      // Try to get notifications to see if backend API is working
       try {
         const response = await fetch(`${appConfig.api.baseUrl}/notifications`, {
           method: "GET",
@@ -366,9 +354,8 @@ function createNotificationWebSocketStore() {
         };
       }
 
-      // Create a test WebSocket to check connectivity
       return new Promise((resolve) => {
-        const testWs = new WebSocket(`ws://localhost:8083/api/v1/notifications/ws?token=${encodeURIComponent(token)}`);
+        const testWs = new WebSocket(`ws:
 
         const timeout = setTimeout(() => {
           testWs.close();

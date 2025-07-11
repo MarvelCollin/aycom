@@ -14,7 +14,7 @@ export function useProfile() {
     error.set(null);
 
     try {
-      // Use the getProfile API function
+
       const data = await userApi.getProfile();
 
       if (data && data.user) {
@@ -52,16 +52,14 @@ export function useProfile() {
     }
   }
 
-  // Function to update user profile
   async function updateProfile(data: IUserUpdateRequest): Promise<{ success: boolean; message?: string }> {
     loading.set(true);
     error.set(null);
 
     try {
-      // Use the updateProfile API function
+
       const responseData = await userApi.updateProfile(data);
 
-      // Update the local profile with the new data
       const currentProfile = get(profile);
       if (currentProfile) {
         profile.set({
@@ -86,7 +84,6 @@ export function useProfile() {
     }
   }
 
-  // Function to check if a username is available
   async function checkUsernameAvailability(username: string): Promise<boolean> {
     try {
       return await userApi.checkUsernameAvailability(username);
@@ -96,12 +93,10 @@ export function useProfile() {
     }
   }
 
-  // Function to follow a user
   async function followUser(userId: string): Promise<boolean> {
     try {
       const success = await userApi.followUser(userId);
 
-      // Update followers count in the profile
       if (success) {
         const currentProfile = get(profile);
         if (currentProfile) {
@@ -119,12 +114,10 @@ export function useProfile() {
     }
   }
 
-  // Function to unfollow a user
   async function unfollowUser(userId: string): Promise<boolean> {
     try {
       const success = await userApi.unfollowUser(userId);
 
-      // Update followers count in the profile
       if (success) {
         const currentProfile = get(profile);
         if (currentProfile && currentProfile.followers_count > 0) {
@@ -142,7 +135,6 @@ export function useProfile() {
     }
   }
 
-  // Function to get followers list
   async function getFollowers(userId: string, page = 1, limit = 20): Promise<IUser[]> {
     try {
       return await userApi.getFollowers(userId, page, limit);
@@ -152,7 +144,6 @@ export function useProfile() {
     }
   }
 
-  // Function to get following list
   async function getFollowing(userId: string, page = 1, limit = 20): Promise<IUser[]> {
     try {
       return await userApi.getFollowing(userId, page, limit);

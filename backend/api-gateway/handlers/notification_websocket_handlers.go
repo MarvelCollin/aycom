@@ -25,7 +25,7 @@ type NotificationClient struct {
 func HandleNotificationsWebSocket(c *gin.Context) {
 	log.Printf("WebSocket connection request received for notifications from IP: %s", c.ClientIP())
 
-	// Set CORS headers for WebSocket
+	
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "*"
@@ -36,21 +36,21 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 
-	// Handle preflight OPTIONS request
+	
 	if c.Request.Method == "OPTIONS" {
 		c.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 
-	// Get authentication from query parameters for WebSocket
+	
 	userID := ""
 
-	// First try to get userID from context (if JWT middleware was applied)
+	
 	if contextUserID, exists := c.Get("userId"); exists {
 		userID = contextUserID.(string)
 		log.Printf("Got user ID from context: %s", userID)
 	} else {
-		// Fallback: authenticate from query parameters
+		
 		token := c.Query("token")
 		queryUserID := c.Query("user_id")
 
@@ -58,7 +58,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 			token[:min(len(token), 20)], queryUserID)
 
 		if token != "" {
-			// Validate the token
+			
 			jwtSecret := string(utils.GetJWTSecret())
 
 			parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
@@ -80,7 +80,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 				return
 			}
 
-			// Extract user ID from token claims
+			
 			if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
 				if tokenUserID, ok := claims["user_id"].(string); ok {
 					userID = tokenUserID
@@ -88,7 +88,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 					userID = sub
 				}
 
-				// Verify user ID matches query parameter if provided
+				
 				if queryUserID != "" && userID != queryUserID {
 					log.Printf("User ID mismatch: token=%s, query=%s", userID, queryUserID)
 					utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID mismatch")
@@ -96,7 +96,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 				}
 			}
 		} else if queryUserID != "" {
-			// For development/testing, allow direct user ID (remove in production)
+			
 			log.Printf("WARNING: Using direct user ID without token validation (development only)")
 			userID = queryUserID
 		}
@@ -111,14 +111,14 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 	log.Printf("Handling WebSocket connection for user ID: %s", userID)
 	log.Printf("Headers: %v", c.Request.Header)
 
-	// Enhanced upgrader configuration
+	
 	upgraderConfig := websocket.Upgrader{
 		ReadBufferSize:  ReadBufferSize,
 		WriteBufferSize: WriteBufferSize,
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 			log.Printf("WebSocket connection attempt from origin: %s", origin)
-			// Accept all origins during development
+			
 			return true
 		},
 	}
@@ -154,7 +154,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 	go client.notificationWritePump()
 	go client.notificationReadPump(wsClient)
 
-	// Send test ping message on connection
+	
 	testMessage := map[string]interface{}{
 		"type":      "connection_established",
 		"timestamp": time.Now().Format(time.RFC3339),

@@ -1,5 +1,4 @@
 services:
-  # Frontend
   frontend:
     build:
       context: ./frontend
@@ -12,10 +11,6 @@ services:
       - VITE_API_BASE_URL=http://api_gateway:8081/api/v1
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
-      - VITE_GOOGLE_CLIENT_ID=161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com
-      - VITE_GOOGLE_REDIRECT_URI=http://localhost:3000/register
-      - VITE_RECAPTCHA_SITE_KEY=6LcrtmErAAAAACQuNOe_Zck_KLZm3QpZ-yrXCOoU
-      - VITE_RECAPTCHA_SECRET_KEY=6LcrtmErAAAAAI0TIp3ZflJJgEXiNFEOhuGQKF61
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -28,7 +23,6 @@ services:
           cpus: '0.5'
           memory: 1G
 
-  # AI Service - Machine Learning Service
   ai_service:
     build:
       context: ./ai-service
@@ -55,7 +49,6 @@ services:
           cpus: '0.5'
           memory: 2G
 
-  # API Gateway
   api_gateway:
     build:
       context: ./backend
@@ -71,20 +64,13 @@ services:
       - THREAD_SERVICE_PORT=9092
       - COMMUNITY_SERVICE_HOST=community_service
       - COMMUNITY_SERVICE_PORT=9093
-      # AI service configuration
       - AI_SERVICE_HOST=ai_service
       - AI_SERVICE_PORT=5000
       - CORS_ORIGIN=http://localhost:3000
-      # Supabase configuration
-      - SUPABASE_URL=https://sdhtnvlmuywinhcglfsu.supabase.co      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTkwMTg3NSwiZXhwIjoyMDYxNDc3ODc1fQ.KNuEFpwiuSIt3rgaJDSO-BOhYnqlRyR1uIcHAenIthw
-      # reCAPTCHA configuration
-      - RECAPTCHA_SECRET_KEY=6LcrtmErAAAAAI0TIp3ZflJJgEXiNFEOhuGQKF61
-      - RECAPTCHA_SITE_KEY=6LcrtmErAAAAACQuNOe_Zck_KLZm3QpZ-yrXCOoU      # Redis configuration
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
-      # RabbitMQ configuration
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     volumes:
       - ./backend:/app
@@ -108,7 +94,6 @@ services:
           cpus: '0.3'
           memory: 512M
 
-  # User Service - Profile Management
   user_service:
     build:
       context: ./backend
@@ -225,7 +210,7 @@ services:
       - user_db_data:/var/lib/postgresql/data
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-kolin} -d ${USER_DB_NAME:-user_db}"] # Explicitly check the correct database
+      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-kolin} -d ${USER_DB_NAME:-user_db}"] 
       interval: 5s
       timeout: 5s
       retries: 5
@@ -235,7 +220,6 @@ services:
           cpus: '0.3'
           memory: 512M
 
-  # Thread Service Database
   thread_db:
     image: postgres:14-alpine
     ports:
@@ -277,12 +261,11 @@ services:
           cpus: '0.2'
           memory: 256M
 
-  # RabbitMQ for messaging
   rabbitmq:
     image: rabbitmq:3.11-management-alpine
     ports:
-      - "5672:5672"  # AMQP
-      - "15672:15672"  # Management UI
+      - "5672:5672" 
+      - "15672:15672" 
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: always

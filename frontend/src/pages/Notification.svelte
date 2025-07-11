@@ -12,25 +12,22 @@
 
   const logger = createLoggerWithPrefix("Notification");
 
-  // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
 
-  // Reactive declarations
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === "dark";
 
-  // User profile data
   let username = "";
   let displayName = "";
-  let avatar = "https://secure.gravatar.com/avatar/0?d=mp"; // Default avatar with proper image URL
+  let avatar = "https://secure.gravatar.com/avatar/0?d=mp"; 
   let isLoadingProfile = true;
-    // Notification state
+
   let isLoading = true;
   let activeTab: "all" | "mentions" | "likes" | "bookmarks" | "replies" = "all";
   let notifications: Notification[] = [];
   let mentions: Notification[] = [];
-  let userInteractions: any = null;    // Notification interface
+  let userInteractions: any = null;    
   interface Notification {
     id: string;
     type: "like" | "repost" | "follow" | "mention" | "bookmark" | "reply";
@@ -43,7 +40,7 @@
     thread_content?: string;
     is_read: boolean;
   }
-    // Authentication check
+
   function validateUserAuth() {
     if (!authState.is_authenticated) {
       toastStore.showToast("You need to log in to access notifications", "warning");
@@ -53,7 +50,6 @@
     return true;
   }
 
-  // Fetch user profile data
   async function fetchUserProfile() {
     isLoadingProfile = true;
     try {
@@ -75,12 +71,12 @@
       isLoadingProfile = false;
     }
   }
-    // Fetch notifications
+
   async function fetchNotifications() {
     isLoading = true;
 
     try {
-      // Fetch notifications from API
+
       const notificationsData = await getNotifications();
       notifications = notificationsData.map(notification => ({
         id: notification.id,
@@ -95,7 +91,6 @@
         is_read: notification.is_read
       }));
 
-      // Fetch mentions from API
       const mentionsData = await getMentions();
       mentions = mentionsData.map(mention => ({
         id: mention.id,
@@ -110,7 +105,6 @@
         is_read: mention.is_read
       }));
 
-      // Fetch user interactions (likes, bookmarks, replies)
       try {
         userInteractions = await getUserInteractionNotifications();
       } catch (error) {
@@ -133,13 +127,12 @@
       isLoading = false;
     }
   }
-  // Handle tab change
+
   function handleTabChange(tab: "all" | "mentions" | "likes" | "bookmarks" | "replies") {
     activeTab = tab;
     logger.debug("Tab changed", { tab });
   }
 
-  // Get data for current tab
   function getCurrentTabData(): Notification[] {
     switch (activeTab) {
       case "all":
@@ -157,7 +150,6 @@
     }
   }
 
-  // Get count for tab badge
   function getTabCount(tab: string): number {
     switch (tab) {
       case "all":
@@ -174,12 +166,12 @@
         return 0;
     }
   }
-    // Navigate to thread or profile based on notification type
+
   async function handleNotificationClick(notification: Notification) {
     try {
-      // Mark notification as read
+
       await markNotificationAsRead(notification.id);
-        // Update local state
+
       if (notification.type === "mention") {
         mentions = mentions.map(n =>
           n.id === notification.id ? { ...n, is_read: true } : n
@@ -201,22 +193,22 @@
           n.id === notification.id ? { ...n, is_read: true } : n
         );
       }
-        // Navigate based on notification type
+
       if (notification.type === "mention" || notification.type === "reply") {
-        // For mentions and replies, navigate to the thread where mentioned/replied
+
         window.location.href = `/thread/${notification.thread_id}`;
       } else if (notification.thread_id && (notification.type === "like" || notification.type === "bookmark" || notification.type === "repost")) {
-        // For likes, bookmarks, and reposts, navigate to the thread
+
         window.location.href = `/thread/${notification.thread_id}`;
       } else if (notification.type === "follow") {
-        // For follows, navigate to the profile of the user who followed
+
         window.location.href = `/profile/${notification.username}`;
       }
     } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error("Error marking notification as read:", errorResponse);
       toastStore.showToast("Failed to mark notification as read.", "error");
-        // Still navigate even if marking as read fails
+
       if (notification.thread_id) {
         window.location.href = `/thread/${notification.thread_id}`;
       } else if (notification.type === "follow") {
@@ -228,7 +220,7 @@
   onMount(() => {
     logger.debug("Notification page mounted", { authState });
     if (validateUserAuth()) {
-      // Fetch user profile first, then notifications
+
       fetchUserProfile().then(() => {
         fetchNotifications();
       });
@@ -451,7 +443,6 @@
     min-height: 100vh;
   }
 
-  /* Header styles */
   .notification-header {
     padding: var(--space-4);
     border-bottom: 1px solid var(--border-color);
@@ -467,7 +458,7 @@
     font-weight: 700;
     margin-bottom: var(--space-3);
   }
-    /* Tab styles */
+
   .notification-tabs {
     display: flex;
     border-bottom: 1px solid var(--border-color);
@@ -536,7 +527,6 @@
     line-height: 1;
   }
 
-  /* Loading skeleton styles */
   .notification-loading {
     padding: var(--space-2) 0;
   }
@@ -596,7 +586,6 @@
     100% { opacity: 0.6; }
   }
 
-  /* Empty state styles */
   .notification-empty {
     display: flex;
     flex-direction: column;
@@ -631,7 +620,6 @@
     line-height: 1.4;
   }
 
-  /* Notification list styles */
   .notification-list {
     display: flex;
     flex-direction: column;
@@ -749,7 +737,7 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
-    /* Fallback for browsers that don't support line-clamp */
+
     max-height: calc(1.4em * 2);
   }
 
@@ -760,12 +748,10 @@
     margin-left: var(--space-2);
   }
 
-  /* Mention notifications */
   .notification-item.mention {
     border-left: 3px solid var(--color-primary);
   }
 
-  /* Read state */
   .notification-item.read {
     opacity: 0.9;
   }

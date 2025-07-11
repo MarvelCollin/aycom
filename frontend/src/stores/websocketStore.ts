@@ -45,9 +45,9 @@ const messageHandlers: MessageHandler[] = [];
 function createWebSocketStore() {
   const { subscribe, update, set } = writable<WebSocketState>(initialState);
 
-  const reconnectAttempts: Record<string, number> = {}; // Per-chat reconnection attempts
+  const reconnectAttempts: Record<string, number> = {}; 
   let reconnectTimeouts: Record<string, number> = {};
-  const lastConnectionAttempt: Record<string, number> = {}; // Throttling mechanism
+  const lastConnectionAttempt: Record<string, number> = {}; 
 
   const buildWebSocketUrl = (chatId: string) => {
     try {
@@ -56,16 +56,14 @@ function createWebSocketStore() {
         throw new Error("No authentication token available");
       }
 
-      // Derive WebSocket URL from the configured API base URL for consistency
       const apiUrl = new URL(appConfig.api.baseUrl);
       const protocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
       const hostname = apiUrl.hostname;
       const port = apiUrl.port || (protocol === "wss:" ? "443" : "80");
 
-      // The path for the WebSocket connection
       const wsPath = `/api/v1/chats/${chatId}/ws`;
 
-      const wsUrl = `${protocol}//${hostname}:${port}${wsPath}?token=${encodeURIComponent(token)}`;
+      const wsUrl = `${protocol}
 
       logger.info(`Built WebSocket URL: ${wsUrl}`);
       return wsUrl;
@@ -79,7 +77,6 @@ function createWebSocketStore() {
   const connect = (chatId: string) => {
     logger.info(`Connecting to WebSocket for chat: ${chatId}`);
 
-    // Throttle connection attempts - don't allow connections more frequent than every 2 seconds
     const now = Date.now();
     const lastAttempt = lastConnectionAttempt[chatId] || 0;
     if (now - lastAttempt < 2000) {
@@ -88,7 +85,6 @@ function createWebSocketStore() {
     }
     lastConnectionAttempt[chatId] = now;
 
-    // Validate chat ID format (UUID)
     if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
       logger.error(`Invalid chat ID format: ${chatId}`);
       update(state => ({
@@ -105,13 +101,11 @@ function createWebSocketStore() {
       lastError: null
     }));
 
-    // Clear any existing timeout
     if (reconnectTimeouts[chatId]) {
       clearTimeout(reconnectTimeouts[chatId]);
       delete reconnectTimeouts[chatId];
     }
 
-    // Close existing connection if any
     update(state => {
       if (state.chatConnections[chatId]) {
         try {
@@ -131,7 +125,6 @@ function createWebSocketStore() {
       const wsUrl = buildWebSocketUrl(chatId);
       logger.info(`Attempting to connect to WebSocket: ${wsUrl}`);
 
-      // Set a connection timeout
       const connectionTimeout = setTimeout(() => {
         logger.warn(`WebSocket connection timeout for chat ${chatId}`);
 
@@ -144,9 +137,8 @@ function createWebSocketStore() {
           }
         }));
 
-        // Attempt to reconnect instead of falling back
         attemptReconnect(chatId);
-      }, 15000); // Increased timeout to 15 seconds
+      }, 15000); 
 
       const ws = new WebSocket(wsUrl);
 
@@ -169,11 +161,9 @@ function createWebSocketStore() {
           }
         }));
 
-        // Reset reconnection attempts on successful connection
         reconnectAttempts[chatId] = 0;
-        lastConnectionAttempt[chatId] = 0; // Clear throttling
+        lastConnectionAttempt[chatId] = 0; 
 
-        // Send an initial connection check message
         try {
           const token = getAuthToken();
           let userId = "";
@@ -216,7 +206,6 @@ function createWebSocketStore() {
           }
         }));
 
-        // Try to reconnect after a delay using per-chat counter
         const currentAttempts = reconnectAttempts[chatId] || 0;
         const reconnectDelay = Math.min(1000 * Math.pow(1.5, currentAttempts), 30000);
         reconnectAttempts[chatId] = currentAttempts + 1;
@@ -230,7 +219,6 @@ function createWebSocketStore() {
       ws.addEventListener("close", (event) => {
         logger.info(`WebSocket connection closed for chat ${chatId}:`, event.code, event.reason);
 
-        // Update connection status
         update(s => {
           const connections = { ...s.chatConnections };
           delete connections[chatId];
@@ -246,7 +234,6 @@ function createWebSocketStore() {
           };
         });
 
-        // If this wasn't a normal closure, try to reconnect using per-chat counter
         if (event.code !== 1000 && event.code !== 1001) {
           const currentAttempts = reconnectAttempts[chatId] || 0;
           const reconnectDelay = Math.min(1000 * Math.pow(1.5, currentAttempts), 30000);
@@ -271,7 +258,6 @@ function createWebSocketStore() {
         }
       }));
 
-      // Attempt to reconnect instead of falling back
       attemptReconnect(chatId);
     }
   };
@@ -307,7 +293,6 @@ function createWebSocketStore() {
         }
       });
 
-      // Clear all timeouts
       Object.values(reconnectTimeouts).forEach(timeout => {
         clearTimeout(timeout);
       });
@@ -337,18 +322,15 @@ function createWebSocketStore() {
       if (state.chatConnections[chatId].readyState !== WebSocket.OPEN) {
         logger.warn(`WebSocket for chat ${chatId} is not in OPEN state (current state: ${state.chatConnections[chatId].readyState}). Attempting to reconnect...`);
 
-        // Close the existing connection
         try {
           state.chatConnections[chatId].close(1000, "Reconnecting due to non-OPEN state");
         } catch (e) {
           logger.error(`Error closing existing connection for chat ${chatId}:`, e);
         }
 
-        // Remove from state
         const connections = { ...state.chatConnections };
         delete connections[chatId];
 
-        // Schedule reconnection
         setTimeout(() => connect(chatId), 500);
 
         return {
@@ -364,7 +346,7 @@ function createWebSocketStore() {
 
       try {
         const ws = state.chatConnections[chatId];
-        // Ensure the message has the correct structure for WebSocket
+
         const wsMessage = {
           type: message.type || "text",
           content: message.content || "",
@@ -389,7 +371,6 @@ function createWebSocketStore() {
       } catch (e) {
         logger.error(`Error sending WebSocket message to chat ${chatId}:`, e);
 
-        // Schedule reconnection on error
         setTimeout(() => connect(chatId), 1000);
 
         return {
@@ -417,7 +398,7 @@ function createWebSocketStore() {
       }
     }));
 
-    const maxReconnectAttempts = 10; // Increased attempts for better reliability
+    const maxReconnectAttempts = 10; 
     const currentAttempts = reconnectAttempts[chatId] || 0;
 
     if (currentAttempts >= maxReconnectAttempts) {
@@ -465,7 +446,7 @@ function createWebSocketStore() {
     let result = false;
 
     update(state => {
-      // Check if we have a connection for this chat
+
       const connection = state.chatConnections[chatId];
       if (connection && connection.readyState === WebSocket.OPEN) {
         result = true;
@@ -500,19 +481,17 @@ export function setWebSocketHandlers(setup: (ws: any) => void) {
   }
 }
 
-// Function to handle incoming WebSocket messages
 const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEvent) => {
   try {
-    // Log raw data for debugging
+
     logger.debug(`[WebSocket] Raw message received for chat ${chatId}`);
 
-    // Try to parse the message as JSON
     let message: any;
     try {
       message = JSON.parse(event.data);
     } catch (parseError) {
       logger.debug("Failed to parse message as JSON");
-      // Try to handle as plain text
+
       message = {
         type: "text",
         content: event.data,
@@ -521,7 +500,6 @@ const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEve
       };
     }
 
-    // Ensure the message has the required properties
     const chatMessage: ChatMessage = {
       type: message.type || "text",
       content: message.content || "",
@@ -538,12 +516,10 @@ const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEve
       is_system: message.is_system || false
     };
 
-    // Convert Unix timestamp to ISO string if needed
     if (typeof chatMessage.timestamp === "number") {
       chatMessage.timestamp = new Date(chatMessage.timestamp * 1000).toISOString();
     }
 
-    // Log the processed message with more detail
     logger.debug(`[WebSocket] Processed message for chat ${chatId}:`, {
       type: chatMessage.type,
       content: chatMessage.content?.substring(0, 50),
@@ -551,7 +527,6 @@ const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEve
       message_id: chatMessage.message_id
     });
 
-    // Notify all registered handlers
     if (messageHandlers.length === 0) {
       logger.warn("[WebSocket] No message handlers registered to process message");
     }

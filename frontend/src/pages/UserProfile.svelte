@@ -12,10 +12,8 @@
 
   const logger = createLoggerWithPrefix("UserProfile");
 
-  // Define userId prop explicitly
   export let userId: string = "";
 
-  // Extract userId from the URL path
   let isLoading = true;
   let error: string | null = null;
   let username = "";
@@ -23,17 +21,14 @@
   let profile_picture_url = "";
   let isOwnProfile = false;
 
-  // Subscribe to the page store to get URL parameters
   const unsubscribe = page.subscribe(($page) => {
     logger.debug("Page store updated:", $page);
 
-    // Check if we have a userId from the route params
     if ($page.params.userId) {
       if (userId !== $page.params.userId) {
         logger.debug(`User ID changed from ${userId} to ${$page.params.userId}`);
         userId = $page.params.userId;
 
-        // Determine if this is the user's own profile
         const currentUserId = getUserId();
         isOwnProfile = userId === "me" || userId === currentUserId;
         logger.debug(`Is own profile: ${isOwnProfile}, currentUserId: ${currentUserId}`);
@@ -41,7 +36,7 @@
         loadUserBasicInfo(userId);
       }
     } else if (!userId) {
-      // No userId in params or props, try parsing from the URL
+
       parseUserIdFromUrl();
     }
   });
@@ -57,7 +52,6 @@
         logger.debug(`Parsed user ID from URL: ${urlUserId}`);
         userId = urlUserId;
 
-        // Determine if this is the user's own profile
         const currentUserId = getUserId();
         isOwnProfile = userId === "me" || userId === currentUserId;
         logger.debug(`Is own profile: ${isOwnProfile}, currentUserId: ${currentUserId}`);
@@ -71,7 +65,6 @@
     }
   }
 
-  // Load basic user info for the layout
   async function loadUserBasicInfo(id: string) {
     if (!id) {
       logger.error("Invalid user ID");
@@ -80,7 +73,6 @@
       return;
     }
 
-    // Verify that the user is authenticated
     if (!isAuthenticated()) {
       logger.warn("User not authenticated, redirecting to login");
       window.location.href = "/login";
@@ -92,15 +84,15 @@
     error = null;
 
     try {
-      // Check if id is a UUID or a username
+
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
       let userData;
       if (isUUID) {
-        // If it's a UUID, use getUserById
+
         userData = await getUserById(id);
       } else {
-        // If it's not a UUID, assume it's a username
+
         userData = await getUserByUsername(id);
       }
 
@@ -127,14 +119,12 @@
   onMount(() => {
     logger.debug("UserProfile component mounted");
 
-    // Check if we already have a userId from the page store or props
     if (!userId) {
       logger.debug("No userId from page store or props, parsing from URL");
       parseUserIdFromUrl();
     } else {
       logger.debug(`Using provided userId: ${userId}`);
 
-      // Determine if this is the user's own profile
       const currentUserId = getUserId();
       isOwnProfile = userId === "me" || userId === currentUserId;
       logger.debug(`Is own profile: ${isOwnProfile}, currentUserId: ${currentUserId}`);
@@ -142,7 +132,6 @@
       loadUserBasicInfo(userId);
     }
 
-    // Set up event listener for popstate events
     const handlePopState = () => {
       logger.debug("PopState event triggered, parsing URL");
       parseUserIdFromUrl();
@@ -150,7 +139,6 @@
 
     window.addEventListener("popstate", handlePopState);
 
-    // Clean up subscription and event listener when component is destroyed
     return () => {
       logger.debug("Cleaning up UserProfile component");
       unsubscribe();

@@ -14,7 +14,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
   import { transformApiUsers } from "../../utils/userTransform";
   import type { StandardUser } from "../../utils/userTransform";
 
-  // Extend the ISuggestedFollow interface with our UI-specific properties
   interface ExtendedSuggestedFollow extends ISuggestedFollow {
     isFollowingLoading?: boolean;
   }
@@ -30,7 +29,7 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
   let showSearch = false;
   const followingStatus: Record<string, boolean> = {};
   const followLoading: Record<string, boolean> = {};
-    // Search functionality state
+
   let searchResults: StandardUser[] = [];
   let isSearching = false;
   let showSearchResults = false;
@@ -39,7 +38,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     fetchTrends();
     fetchSuggestedUsers();
 
-    // Check window width for responsive design
     const checkWidth = () => {
       windowWidth = window.innerWidth;
     };
@@ -47,7 +45,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     checkWidth();
     window.addEventListener("resize", checkWidth);
 
-    // Click outside to close search results
     const handleClickOutside = (event) => {
       if (searchContainer && !searchContainer.contains(event.target)) {
         showSearchResults = false;
@@ -65,7 +62,7 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
   async function fetchTrends() {
     isTrendsLoading = true;
     try {
-      // Fetch more trends to ensure we have enough data
+
       const fetchedTrends = await getTrends(10);
       trends = fetchedTrends || [];
       console.log("Fetched trends:", trends);
@@ -84,14 +81,11 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
       const users = await getSuggestedUsers(isTabletView ? 3 : 3, "follower_count");
       suggestedFollows = users || [];
     } catch (error) {
-      // Don't show toast error for auth issues, just log quietly
+
       console.debug("Note: Could not load suggested users - you may need to be logged in");
 
-      // Fallback to empty results rather than showing an error
       suggestedFollows = [];
 
-      // Optional: If we want to provide some default suggestions when API fails
-      // This is purely client-side and doesn't require authentication
       if (suggestedFollows.length === 0) {
         console.debug("Using default suggested users as fallback");
       }
@@ -116,7 +110,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     try {
       followLoading[userId] = true;
 
-      // Find the user in suggestedFollows
       const userIndex = suggestedFollows.findIndex(user =>
         (user.user_id === userId) || (user.id === userId)
       );
@@ -128,7 +121,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
       const user = suggestedFollows[userIndex];
       const wasFollowing = user.is_following;
 
-      // Optimistically update UI
       suggestedFollows = suggestedFollows.map(user => {
         if (user.user_id === userId) {
           return { ...user, is_following: !user.is_following };
@@ -136,7 +128,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
         return user;
       });
 
-      // Make API call
       let response;
       if (wasFollowing) {
         response = await unfollowUser(userId);
@@ -150,7 +141,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
         }
       }
 
-      // If the API call failed, revert the UI change
       if (!response || !response.success) {
         suggestedFollows = suggestedFollows.map(user => {
           if (user.user_id === userId) {
@@ -163,26 +153,13 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     } catch (error) {
       console.error("Error toggling follow status:", error);
 
-      // Revert any UI changes on error
-      suggestedFollows = [...suggestedFollows]; // Trigger reactivity
+      suggestedFollows = [...suggestedFollows]; 
       toastStore.showToast("Failed to update follow status", "error");
     } finally {
       followLoading[userId] = false;
     }
-  }  // Debounced search function with proper data transformation
-  /**
-   * DEBOUNCED SEARCH IMPLEMENTATION
-   *
-   * This function implements smart user searching with the following improvements:
-   * - 300ms debounce to prevent excessive API calls
-   * - Proper error handling with user-friendly toast notifications
-   * - Data transformation using transformApiUsers for consistent user object structure
-   * - Comprehensive logging for debugging and monitoring
-   * - Loading state management for better UX
-   *
-   * The search results are transformed from the API response format to StandardUser
-   * format to ensure consistent property names (e.g., display_name -> displayName)
-   */
+  }  
+
   const debouncedSearch = debounce(async (query: string) => {
     if (!query.trim()) {
       searchResults = [];
@@ -198,14 +175,12 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
       const response = await searchUsers(query.trim(), 1, 5);
       console.log("Search API response:", response);
 
-      // Transform the API response to StandardUser format
       const users = response.users || [];
       searchResults = transformApiUsers(users);
 
       console.log("Transformed search results:", searchResults);
       showSearchResults = true;
 
-      // Show success message if results found
       if (searchResults.length > 0) {
         console.log(`Found ${searchResults.length} users matching "${query.trim()}"`);
       }
@@ -226,11 +201,11 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
 
   function handleSearch(e) {
     if (e.key === "Enter" && searchQuery.trim()) {
-      // If there are search results, go to the first user's profile
+
       if (searchResults.length > 0) {
         navigateToProfile(searchResults[0].username);
       } else {
-        // Fallback to explore page
+
         window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`;
       }
     } else if (e.key === "Escape") {
@@ -257,7 +232,7 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
   }
 
   function handleSearchBlur() {
-    // Delay hiding results to allow for clicks
+
     setTimeout(() => {
       showSearchResults = false;
     }, 200);
@@ -272,7 +247,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     }
   }
 
-  // Initialize following status for each suggested user
   $: {
     suggestedFollows.forEach(user => {
       if (followingStatus[user.username] === undefined) {
@@ -573,7 +547,7 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     flex-wrap: wrap;
     gap: var(--space-4);
   }
-    /* Search widget */
+
   .search-widget {
     margin-bottom: var(--space-4);
     position: sticky;
@@ -641,7 +615,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     color: var(--color-primary);
   }
 
-  /* Search Results Dropdown */
   .search-results {
     position: absolute;
     top: 100%;
@@ -783,7 +756,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     background-color: var(--dark-hover-bg);
   }
 
-  /* Premium Advertisement Widget */
   .premium-ad-widget {
     margin-bottom: var(--space-4);
     border-radius: var(--radius-lg);
@@ -906,7 +878,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     transform: translateX(2px);
   }
 
-  /* Tablet view adjustments for premium ad */
   .widgets-container-tablet .premium-ad-widget {
     flex: 1;
     min-width: 280px;
@@ -949,7 +920,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     }
   }
 
-  /* Sidebar sections */
   .sidebar-section {
     background-color: var(--bg-secondary);
     border-radius: var(--radius-lg);
@@ -973,7 +943,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     margin-bottom: var(--space-4);
   }
 
-  /* Trends list styles */
   .trends-loading,
   .suggestions-loading {
     display: flex;
@@ -1095,7 +1064,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     color: var(--color-primary-light);
   }
 
-  /* Suggestions list styles */
   .suggestions-list {
     margin-bottom: var(--space-2);
   }
@@ -1236,7 +1204,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     }
   }
 
-  /* Footer styles */
   .footer-links {
     padding: var(--space-2) 0;
     font-size: var(--font-size-xs);
@@ -1265,7 +1232,6 @@ import type { ITrend } from "../../interfaces/ITrend";  import { getTrends } fro
     margin-top: var(--space-2);
   }
 
-  /* Responsive styles */
   @media (max-width: 1400px) {
     .sidebar-section {
       padding: var(--space-3);

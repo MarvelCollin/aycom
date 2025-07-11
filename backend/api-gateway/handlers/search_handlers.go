@@ -12,21 +12,21 @@ import (
 )
 
 func SearchUsers(c *gin.Context) {
-	// Get query parameters
+	
 	query := c.Query("q")
 	filter := c.DefaultQuery("filter", "all")
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
 	fuzzyStr := c.DefaultQuery("fuzzy", "false")
 
-	// Log the search parameters
+	
 	log.Printf("SearchUsers: Processing with query='%s', filter='%s', page=%s, limit=%s, fuzzy=%s",
 		query, filter, pageStr, limitStr, fuzzyStr)
 
-	// Parse fuzzy search parameter
+	
 	enableFuzzy := fuzzyStr == "true"
 
-	// Convert page and limit to integers
+	
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
@@ -37,16 +37,16 @@ func SearchUsers(c *gin.Context) {
 		limit = 10
 	}
 
-	// If query is empty, check if we have an 'q' parameter
+	
 	if query == "" {
 		query = c.Query("query")
 		log.Printf("SearchUsers: query parameter empty, using 'q' parameter: %s", query)
 	}
 
-	// No need to check if query is empty - we want to support empty queries
-	// for filter-only searches like verified users or following
+	
+	
 
-	// Validate query length only if provided
+	
 	if query != "" {
 		const MAX_QUERY_LENGTH = 50
 		if len(query) > MAX_QUERY_LENGTH {
@@ -61,15 +61,15 @@ func SearchUsers(c *gin.Context) {
 		return
 	}
 
-	// Ensure we always have either a query or filter parameter
-	// If query is empty, make sure we at least have a non-empty filter
+	
+	
 	if query == "" && (filter == "" || filter == "all") {
-		// Default to a space character for empty queries with generic filters
+		
 		query = " "
 		log.Printf("SearchUsers: Empty query with generic filter, using space as query placeholder")
 	}
 
-	// Search for users
+	
 	users, totalCount, searchErr := userServiceClient.SearchUsers(query, filter, page, limit, enableFuzzy)
 
 	if searchErr != nil {
@@ -103,13 +103,13 @@ func SearchUsers(c *gin.Context) {
 		userResults = append(userResults, userResult)
 	}
 
-	// Calculate total pages
+	
 	totalPages := (totalCount + limit - 1) / limit
 	if totalPages < 1 {
 		totalPages = 1
 	}
 
-	// Prepare response data
+	
 	responseData := gin.H{
 		"users": userResults,
 		"pagination": gin.H{
@@ -121,7 +121,7 @@ func SearchUsers(c *gin.Context) {
 		},
 	}
 
-	// Log the response data structure for debugging
+	
 	log.Printf("SearchUsers: Sending response data: %+v", responseData)
 
 	utils.SendSuccessResponse(c, http.StatusOK, responseData)
@@ -134,22 +134,22 @@ func SearchThreads(c *gin.Context) {
 		return
 	}
 
-	// Validate query length
+	
 	const MAX_QUERY_LENGTH = 100
 	if len(query) > MAX_QUERY_LENGTH {
 		log.Printf("Search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
 		query = query[:MAX_QUERY_LENGTH]
 	}
 
-	// Extract parameters
+	
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	filter := c.DefaultQuery("filter", "all")
 	category := c.DefaultQuery("category", "")
 	sortBy := c.DefaultQuery("sort_by", "recent")
-	mediaOnly := c.Query("media_only") == "true" // Check if we should only return threads with media
+	mediaOnly := c.Query("media_only") == "true" 
 
-	// Get authenticated user ID if available
+	
 	var userID string
 	userIDValue, exists := c.Get("userId")
 	if exists {
@@ -170,25 +170,25 @@ func SearchThreads(c *gin.Context) {
 	log.Printf("Searching threads with query=%s, filter=%s, category=%s, sortBy=%s, mediaOnly=%v",
 		query, filter, category, sortBy, mediaOnly)
 
-	// Get threads using fuzzy search via our improved SearchThreads method
-	// The method now handles the Damerau-Levenshtein fuzzy matching internally
+	
+	
 	threads, err = threadServiceClient.SearchThreads(query, userID, page, limit)
 
-	// Apply additional filters on the application layer
+	
 	if err == nil {
 		var filteredThreads []*Thread
 
-		// Apply following filter if needed
+		
 		if filter == "following" && userID != "" && userServiceClient != nil {
 			following, err := userServiceClient.GetFollowing(userID, 1, 1000)
 			if err == nil {
-				// Create a map of followed user IDs for fast lookups
+				
 				followingMap := make(map[string]bool)
 				for _, user := range following {
 					followingMap[user.ID] = true
 				}
 
-				// Filter threads by users the current user follows
+				
 				for _, thread := range threads {
 					if followingMap[thread.UserID] {
 						filteredThreads = append(filteredThreads, thread)
@@ -200,7 +200,7 @@ func SearchThreads(c *gin.Context) {
 			}
 		}
 
-		// Filter threads with media if mediaOnly parameter is true
+		
 		if mediaOnly {
 			filteredThreads = []*Thread{}
 			for _, thread := range threads {
@@ -218,7 +218,7 @@ func SearchThreads(c *gin.Context) {
 		return
 	}
 
-	// Convert to response format
+	
 	var threadResults []gin.H
 	for _, thread := range threads {
 		if thread == nil {
@@ -244,7 +244,7 @@ func SearchThreads(c *gin.Context) {
 			"profile_picture_url": thread.ProfilePicture,
 		}
 
-		// Add media if available
+		
 		if len(thread.Media) > 0 {
 			var mediaList []gin.H
 			for _, media := range thread.Media {
@@ -260,8 +260,8 @@ func SearchThreads(c *gin.Context) {
 		threadResults = append(threadResults, threadData)
 	}
 
-	// Get the total count from the thread service (would need to be implemented)
-	// For now, use a reasonable approximation
+	
+	
 	totalCount := len(threadResults)
 	totalPages := (totalCount + limit - 1) / limit
 	if totalPages < 1 {
@@ -282,7 +282,7 @@ func SearchThreads(c *gin.Context) {
 	})
 }
 
-// SearchCommunities is implemented in community_handlers.go as SearchCommunitiesHandler
+
 
 func GetUserRecommendations(c *gin.Context) {
 	userID, exists := c.Get("userID")

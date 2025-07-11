@@ -19,13 +19,11 @@
   import { getPublicUrl, SUPABASE_BUCKETS } from "../utils/supabase";
   import { formatStorageUrl } from "../utils/common";
 
-  // Import components
   import Pagination from "../components/common/Pagination.svelte";
   import CategoryFilter from "../components/common/CategoryFilter.svelte";
   import Spinner from "../components/common/Spinner.svelte";
   import CreateCommunityModal from "../components/communities/CreateCommunityModal.svelte";
 
-  // Import icons
   import SearchIcon from "svelte-feather-icons/src/icons/SearchIcon.svelte";
   import FilterIcon from "svelte-feather-icons/src/icons/FilterIcon.svelte";
   import CheckIcon from "svelte-feather-icons/src/icons/CheckIcon.svelte";
@@ -36,65 +34,54 @@
 
   const logger = createLoggerWithPrefix("Communities");
 
-  // Auth setup
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
   let authState = getAuthState();
   $: isDarkMode = $theme === "dark";
 
-  // Community creation modal state
   let isCreateModalOpen = false;
 
-  // Pagination configuration
   const limitOptions = [25, 30, 35];
   let currentPage = 1;
   let limit = limitOptions[0];
-  let totalCount = 0;  // Total number of communities
+  let totalCount = 0;  
   let totalPages = 1;
 
-  // Filter settings
-  let activeTab = "joined"; // Will be set based on auth state
+  let activeTab = "joined"; 
   let searchQuery = "";
   let selectedCategories: string[] = [];
   let availableCategories: string[] = [];
-  
-  // Enhanced search settings
+
   let showFilters = false;
   let searchTimeout: ReturnType<typeof setTimeout>;
 
-  // Community data
   let isLoading = false;
-  let communities: any[] = []; // Communities for the current tab
+  let communities: any[] = []; 
   let error: string | null = null;
 
-  // Map to track membership status for each community in discover tab
   let communityMembershipStatus = new Map();
 
-  // Helper function to calculate total pages
   function calculateTotalPages(total: number, perPage: number): number {
-    // Always return at least 1 page, even with 0 items
+
     if (total <= 0 || perPage <= 0) return 1;
     return Math.ceil(total / perPage);
   }
 
-  // Fetch communities based on active tab
   async function fetchCommunities() {
     isLoading = true;
     error = null;
 
     try {
-      // Prepare parameters for API call - clean empty values
+
       const params: any = {
         page: currentPage,
         limit: limit
       };
 
-      // Only add search query if it's not empty
       if (searchQuery && searchQuery.trim()) {
         params.q = searchQuery.trim();
       }
 
-      // Only add categories if there are valid ones
       const validCategories = selectedCategories.filter(cat => cat && cat.trim());
       if (validCategories.length > 0) {
         params.category = validCategories;
@@ -104,7 +91,7 @@
       logger.info(`Fetching communities for tab: ${activeTab}`);
 
       try {
-        // Use appropriate API call based on active tab
+
         switch (activeTab) {
           case "joined":
             result = await getJoinedCommunities(authState.user_id || "", params);
@@ -116,7 +103,7 @@
             result = await getDiscoverCommunities(authState.user_id || "", params);
             break;
           case "all":
-            // Search across all communities
+
             if (searchQuery?.trim() || validCategories.length > 0) {
               const searchParams = {
                 ...params,
@@ -124,7 +111,7 @@
               };
               result = await searchCommunities(searchQuery?.trim() || "", params.page || 1, params.limit || 25, searchParams);
             } else {
-              // Get all communities when no search query
+
               result = await getCommunities(params);
             }
             break;
@@ -132,7 +119,7 @@
             result = await getJoinedCommunities(authState.user_id || "", params);
         }
       } catch (apiError) {
-        // Handle API call errors gracefully
+
         logger.error(`API error in ${activeTab} tab:`, apiError);
         result = {
           success: true,
@@ -143,21 +130,19 @@
         };
       }
 
-      // Add more detailed logging
       console.log(`[Communities] Raw API response for ${activeTab} tab:`, result);
       logger.info("[Communities] API response:", result);
 
-      // Handle response data
       if (result && result.success !== false) {
-        // Extract communities from the result
+
         if (result.data && result.data.communities) {
-          // Handle nested response structure
+
           communities = result.data.communities || [];
           totalCount = result.data.pagination?.total_count || 0;
           currentPage = result.data.pagination?.current_page || currentPage;
           limit = result.data.pagination?.per_page || limit;
         } else {
-          // Handle flat response structure
+
           communities = result.communities || [];
           totalCount = result.total || 0;
           currentPage = result.page || currentPage;
@@ -167,13 +152,11 @@
         console.log("[Communities] Extracted communities:", communities);
         console.log("[Communities] Total count:", totalCount);
 
-        // Make sure communities is always an array
         if (!Array.isArray(communities)) {
           console.log("[Communities] Communities is not an array, resetting to empty array");
           communities = [];
         }
 
-        // Additional debug logging for each community
         communities.forEach((community, index) => {
           console.log(`[Communities] Community ${index}:`, {
             id: community.id,
@@ -184,20 +167,18 @@
           });
         });
 
-        // Set up pagination
         totalPages = calculateTotalPages(totalCount, limit);
         if (currentPage > totalPages && totalPages > 0) {
           currentPage = totalPages;
         }
 
-        // Check membership status for communities in the discover tab
         if (activeTab === "discover" || activeTab === "all") {
           await checkMembershipStatusForAll();
         }
 
         error = null;
       } else {
-        // Handle API error by showing empty data
+
         logger.error("[Communities] Error fetching communities:", result?.error || "Unknown error");
         communities = [];
         totalCount = 0;
@@ -205,7 +186,7 @@
         error = result?.error?.message || "Failed to load communities";
       }
     } catch (err) {
-      // Handle unexpected errors
+
       logger.error("[Communities] Exception fetching communities:", err);
       communities = [];
       totalCount = 0;
@@ -216,7 +197,6 @@
     }
   }
 
-  // Check membership status for all communities in discover tab
   async function checkMembershipStatusForAll() {
     if (!Array.isArray(communities) || communities.length === 0 || (activeTab !== "discover" && activeTab !== "all")) return;
 
@@ -225,7 +205,7 @@
         try {
           const status = await checkMembershipStatus(community.id);
           communityMembershipStatus.set(community.id, status);
-          // Force update for reactivity
+
           communityMembershipStatus = communityMembershipStatus;
         } catch (err) {
           logger.error(`Error checking membership for community ${community.id}:`, err);
@@ -234,7 +214,6 @@
     }
   }
 
-  // Function to check membership status for a community
   async function checkMembershipStatus(communityId: string): Promise<string> {
     if (!authState.is_authenticated || !communityId) return "none";
 
@@ -243,63 +222,54 @@
       return membershipResponse.status || "none";
     } catch (error) {
       logger.warn(`Error checking membership for community ${communityId}:`, error);
-      return "none"; // Default to 'none' on error
+      return "none"; 
     }
   }
 
-  // Handle page change
   function handlePageChange(event: CustomEvent) {
     currentPage = event.detail.page;
     fetchCommunities();
   }
 
-  // Handle limit change
   function handleLimitChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     limit = parseInt(target.value);
-    currentPage = 1; // Reset to first page when changing limit
+    currentPage = 1; 
     fetchCommunities();
   }
 
-  // Handle tab change
   function setActiveTab(tabName: string) {
     activeTab = tabName;
-    currentPage = 1; // Reset to first page when changing tabs
+    currentPage = 1; 
     fetchCommunities();
   }
 
-  // Handle search
   function handleSearch() {
-    currentPage = 1; // Reset to first page when searching
+    currentPage = 1; 
     fetchCommunities();
   }
 
-  // Handle real-time search on input
   function handleSearchInput() {
-    // If we're in the "all" tab, perform real-time search
+
     if (activeTab === "all") {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
         currentPage = 1;
         fetchCommunities();
-      }, 300); // 300ms debounce
+      }, 300); 
     }
   }
 
-  // Handle category filter change
   function handleCategoryChange(event: CustomEvent) {
     selectedCategories = event.detail.selected;
-    currentPage = 1; // Reset to first page when changing filters
+    currentPage = 1; 
     fetchCommunities();
   }
 
-  // Toggle filter visibility
   function toggleFilters() {
     showFilters = !showFilters;
   }
 
-  // Clear all filters
-  // Clear all filters
   function clearFilters() {
     searchQuery = "";
     selectedCategories = [];
@@ -307,7 +277,6 @@
     fetchCommunities();
   }
 
-  // Fetch categories for filter dropdown
   async function fetchCategories() {
     try {
       const categoriesResponse = await getCategories();
@@ -315,13 +284,13 @@
 
       if (categoriesResponse) {
         if (Array.isArray(categoriesResponse)) {
-          // Handle direct array response
+
           availableCategories = categoriesResponse.map((cat: ICategory) => cat.name);
         } else if ((categoriesResponse as any).data && Array.isArray((categoriesResponse as any).data.categories)) {
-          // Handle nested response structure
+
           availableCategories = (categoriesResponse as any).data.categories.map((cat: ICategory) => cat.name);
         } else if (Array.isArray((categoriesResponse as any).categories)) {
-          // Handle flat response structure
+
           availableCategories = (categoriesResponse as any).categories.map((cat: ICategory) => cat.name);
         } else {
           availableCategories = [];
@@ -338,14 +307,12 @@
     }
   }
 
-  // Quick search for all communities
   function searchAllCommunities() {
     setActiveTab("all");
   }
 
-  // Handle join request
   async function joinCommunity(communityId: string, event?: Event) {
-    // Prevent propagation to avoid navigation
+
     if (event) {
       event.stopPropagation();
       event.preventDefault();
@@ -360,9 +327,9 @@
       const response = await requestToJoin(communityId, {});
       if (response.success) {
         toastStore.showToast("Join request sent successfully", "success");
-        // Update the local membership status immediately
+
         communityMembershipStatus.set(communityId, "pending");
-        communityMembershipStatus = communityMembershipStatus; // Force update
+        communityMembershipStatus = communityMembershipStatus; 
       } else {
         toastStore.showToast(response.message || "Failed to request to join community", "error");
       }
@@ -372,7 +339,6 @@
     }
   }
 
-  // Handle community click - navigate to detail page
   function handleCommunityClick(communityId: string) {
     if (!communityId) {
       logger.error("Invalid community ID");
@@ -383,7 +349,6 @@
     window.location.href = href;
   }
 
-  // Open community creation modal
   function openCreateModal() {
     if (!authState.is_authenticated) {
       toastStore.showToast("You must be logged in to create a community", "warning");
@@ -392,64 +357,56 @@
     isCreateModalOpen = true;
   }
 
-  // Handle successful community creation
   function handleCommunityCreated() {
-    // Refresh communities list
+
     toastStore.showToast("Community created successfully!", "success");
     setActiveTab("joined");
   }
 
-  // Helper function to get the Supabase URL for community logos
   function getLogoUrl(community: any): string|null {
     if (!community) return null;
 
-    // Check for different property names
     const logoUrl = community.logo_url || community.logoUrl || community.logo;
 
     if (!logoUrl) return null;
 
     try {
-      // First check if this is a known problematic URL and fix it directly
+
       const fixedUrl = fixKnownProblematicUrl(logoUrl);
       if (fixedUrl !== logoUrl) {
         return fixedUrl;
       }
 
-      // Use formatStorageUrl utility to handle all URL formatting consistently
       return formatStorageUrl(logoUrl);
     } catch (error) {
       console.error("Error formatting logo URL:", error, logoUrl);
-      return logoUrl; // Return original as fallback
+      return logoUrl; 
     }
   }
 
-  // Helper function to get the Supabase URL for community banners
   function getBannerUrl(community: any): string|null {
     if (!community) return null;
 
-    // Check for different property names
     const bannerUrl = community.banner_url || community.bannerUrl || community.banner;
 
     if (!bannerUrl) return null;
 
     try {
-      // First check if this is a known problematic URL and fix it directly
+
       const fixedUrl = fixKnownProblematicUrl(bannerUrl);
       if (fixedUrl !== bannerUrl) {
         return fixedUrl;
       }
 
-      // Use formatStorageUrl utility to handle all URL formatting consistently
       return formatStorageUrl(bannerUrl);
     } catch (error) {
       console.error("Error formatting banner URL:", error, bannerUrl);
-      return bannerUrl; // Return original as fallback
+      return bannerUrl; 
     }
   }
 
-  // Function to fix known problematic URLs
   function fixKnownProblematicUrl(url: string): string {
-    // Map of known problematic URLs to their fixed versions
+
     const knownUrlFixes: Record<string, string> = {
       "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg":
         "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg",
@@ -469,15 +426,13 @@
         "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269411979_4070qdrp.png"
     };
 
-    // If this is a known problematic URL, return the fixed version
     if (url in knownUrlFixes) {
       console.log("Fixed known problematic URL:", url, "to", knownUrlFixes[url]);
       return knownUrlFixes[url];
     }
 
-    // Check if the URL follows a pattern of known problematic URLs
     if (url.includes("/storage/v1/s3/")) {
-      // Convert s3 URLs to object/public URLs
+
       const fixedUrl = url.replace("/storage/v1/s3/", "/storage/v1/object/public/");
       console.log("Fixed pattern-matched URL:", url, "to", fixedUrl);
       return fixedUrl;
@@ -486,19 +441,17 @@
     return url;
   }
 
-  // Initial data loading
   onMount(() => {
     authState = getAuthState();
-    
-    // Set default tab based on authentication status
+
     if (authState.is_authenticated) {
-      activeTab = "joined"; // Authenticated users see joined communities first
+      activeTab = "joined"; 
       fetchCategories();
       fetchCommunities();
     } else {
-      activeTab = "all"; // Unauthenticated users see all communities first
+      activeTab = "all"; 
       logger.info("User not authenticated, showing all communities");
-      // Still fetch categories and show all communities for non-authenticated users
+
       fetchCategories();
       fetchCommunities();
     }
@@ -529,7 +482,7 @@
             <SearchIcon size="16" />
           </button>
         </div>
-        
+
         <div class="search-actions">
           <button 
             class="filter-toggle-button {showFilters ? 'active' : ''}"
@@ -539,7 +492,7 @@
             <FilterIcon size="16" />
             <span>Filters</span>
           </button>
-          
+
           {#if searchQuery || selectedCategories.length > 0}
             <button class="clear-filters-button" on:click={clearFilters}>
               Clear
@@ -615,14 +568,14 @@
                     loading="lazy"
                     on:error={(e) => {
                       console.error("Community banner image failed to load:", getBannerUrl(community));
-                      // Set a fallback class to show a placeholder instead
+
                       const imgElement = e.target as HTMLImageElement;
                       if (imgElement) {
                         imgElement.classList.add("image-error");
-                        // Try to set a data attribute to help with debugging
+
                         imgElement.setAttribute("data-original-url",
                           community.banner_url || community.bannerUrl || community.banner || "");
-                        // Show placeholder
+
                         const parent = imgElement.parentElement;
                         if (parent) {
                           parent.classList.add("banner-placeholder");
@@ -650,21 +603,21 @@
                       loading="lazy"
                       on:error={(e) => {
                         console.error("Community logo image failed to load:", getLogoUrl(community));
-                        // Set a fallback class to show a placeholder instead
+
                         const imgElement = e.target as HTMLImageElement;
                         if (imgElement) {
                           imgElement.classList.add("image-error");
-                          // Show the first letter as fallback
+
                           imgElement.style.display = "none";
                           if (imgElement.parentElement) {
                             imgElement.parentElement.classList.add("logo-placeholder");
-                            // Add the first letter as content
+
                             const letter = community.name && community.name.length > 0
                               ? community.name[0].toUpperCase()
                               : "C";
                             imgElement.parentElement.setAttribute("data-content", letter);
                           }
-                          // Try to set a data attribute to help with debugging
+
                           imgElement.setAttribute("data-original-url",
                             community.logo_url || community.logoUrl || community.logo || "");
                         }
@@ -874,7 +827,6 @@
     background-color: var(--primary-dark, #2c5282);
   }
 
-  /* Enhanced search and filter styles */
   .search-filter-container {
     background: white;
     border-radius: 0.75rem;
@@ -1050,7 +1002,6 @@
     }
   }
 
-  /* Improved responsive design for search */
   @media (max-width: 640px) {
     .search-section {
       flex-direction: column;
@@ -1081,12 +1032,12 @@
     margin-bottom: 1rem;
     border-bottom: 1px solid #e2e8f0;
     overflow-x: auto;
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; 
+    scrollbar-width: none; 
   }
 
   .tab-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none; 
   }
 
   .dark .tab-container {
@@ -1303,7 +1254,7 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
-    /* Fallback for browsers that don't support line-clamp */
+
     line-height: 1.4;
     max-height: calc(1.4em * 2);
   }
@@ -1541,7 +1492,7 @@
     }
 
     .search-box input {
-      font-size: 16px; /* Prevents zoom on iOS */
+      font-size: 16px; 
     }
   }
 

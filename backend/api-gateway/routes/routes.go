@@ -17,7 +17,7 @@ func CORSPreflightHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:3000"
+			origin = "http:
 		}
 
 		log.Printf("CORS Preflight for %s: Setting Allow-Origin to %s", c.Request.URL.Path, origin)
@@ -287,7 +287,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		bookmarks.GET("", handlers.GetUserBookmarks)
 	}
 
-	// Global messages routes (for unsend functionality)
+	
 	messages := v1.Group("/messages")
 	messages.Use(middleware.JWTAuth(jwtSecret))
 	{
@@ -304,7 +304,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	v1.OPTIONS("/admin/*path", func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:3000"
+			origin = "http:
 		}
 
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
@@ -340,7 +340,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		adminGroup.DELETE("/community-categories/:categoryId", handlers.DeleteCommunityCategory)
 		adminGroup.GET("/newsletter-subscribers", handlers.AdminGetAllUsers)
 
-		// Cache management routes
+		
 		adminGroup.DELETE("/cache", handlers.ClearCache)
 		adminGroup.GET("/cache/stats", handlers.GetCacheStats)
 	}

@@ -69,7 +69,7 @@ func (r *GormCommunityRepository) List(offset, limit int) ([]*model.Community, e
 func (r *GormCommunityRepository) ListByCategories(categories []string, offset, limit int) ([]*model.Community, error) {
 	var communities []*model.Community
 
-	// Filter out empty categories
+	
 	validCategories := make([]string, 0)
 	for _, category := range categories {
 		if category != "" {
@@ -120,7 +120,7 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 		dbQuery = dbQuery.Where("is_approved = ?", *isApproved)
 	}
 	if len(categories) > 0 {
-		// Filter out empty categories
+		
 		validCategories := make([]string, 0)
 		for _, category := range categories {
 			if category != "" {
@@ -128,7 +128,7 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 			}
 		}
 
-		// Only proceed if we have valid categories
+		
 		if len(validCategories) > 0 {
 			var communityIDs []uuid.UUID
 			categoryQuery := r.db.Table("community_categories").
@@ -144,7 +144,7 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 			if len(communityIDs) > 0 {
 				dbQuery = dbQuery.Where("community_id IN ?", communityIDs)
 			} else {
-				// No communities found with these categories
+				
 				return []*model.Community{}, 0, nil
 			}
 		}

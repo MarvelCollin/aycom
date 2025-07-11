@@ -1,4 +1,3 @@
-// Type declarations for websocketStore
 import type { ChatMessage } from "../stores/websocketStore";
 
 declare module "../stores/websocketStore" {

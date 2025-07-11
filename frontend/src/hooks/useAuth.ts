@@ -9,7 +9,7 @@ import { createLoggerWithPrefix } from "../utils/logger";
 import * as userApi from "../api/user";
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
+const TOKEN_EXPIRY_BUFFER = 300000; 
 const logger = createLoggerWithPrefix("Auth");
 
 interface AuthState extends IAuthStore {
@@ -57,7 +57,6 @@ const createAuthStore = () => {
     }
   };
 
-  // Setup a timer to check and refresh token before it expires
   let tokenRefreshTimer: number | null = null;
 
   const startTokenRefreshTimer = (expiresAt: number, refreshToken: string | null) => {
@@ -79,7 +78,7 @@ const createAuthStore = () => {
         }
       }, timeUntilRefresh);
     } else {
-      // Token is already expired or about to expire, refresh it immediately
+
       if (refreshToken) {
         refreshExpiredToken(refreshToken);
       }
@@ -97,7 +96,6 @@ const createAuthStore = () => {
           is_admin: authState.is_admin
         });
 
-        // Setup refresh timer whenever we persist auth state
         if (authState.expires_at && authState.refresh_token) {
           startTokenRefreshTimer(authState.expires_at, authState.refresh_token);
         }
@@ -144,7 +142,6 @@ const createAuthStore = () => {
     }
   };
 
-  // Add a function to update admin status
   const updateAdminStatus = (isAdmin: boolean) => {
     auth.update((state) => {
       return { ...state, is_admin: isAdmin };
@@ -189,9 +186,8 @@ export function useAuth() {
     try {
       const data = await authApi.register(userData);
 
-      // Check if there's an error response
       if (!data.success || data.error) {
-        // Return the error with proper success flag set to false
+
         return {
           success: false,
           message: data.error?.message || data.message || "Registration failed. Please check your information.",
@@ -200,7 +196,6 @@ export function useAuth() {
         };
       }
 
-      // Success case
       return {
         success: true,
         message: data.message || "Registration successful! Check your email for verification code."
@@ -253,9 +248,8 @@ export function useAuth() {
 
       const data = await authApi.register(enrichedUserData);
 
-      // Check if there's an error response
       if (!data.success || data.error) {
-        // Return the error with proper success flag set to false
+
         return {
           success: false,
           message: data.error?.message || data.message || "Registration failed. Please check your information.",
@@ -264,7 +258,6 @@ export function useAuth() {
         };
       }
 
-      // Success case
       let message = data.message || "Registration successful! Check your email for verification code.";
       if (profileUploadError || bannerUploadError) {
         message += " Note: Some media uploads failed. You can update your profile later.";
@@ -328,12 +321,11 @@ export function useAuth() {
     }
   };
 
-  // Alias for getCurrentUser for clarity and consistency with API
   const getProfile = getCurrentUser;
 
   const login = async (email: string, password: string, recaptchaToken: string | null = null) => {
     try {
-      // Clear any existing auth data before login to prevent token issues
+
       clearAuthData();
 
       const data = await authApi.login(email, password, recaptchaToken);
@@ -341,11 +333,11 @@ export function useAuth() {
       logger.info(`Login response received with token: ${data.access_token ? "yes" : "no"}`);
 
       if (data.access_token) {
-        // Simple JWT inspection to debug token issues
+
         try {
           const tokenParts = data.access_token.split(".");
           if (tokenParts.length === 3) {
-            // Base64 decode the payload (middle part)
+
             const payload = JSON.parse(atob(tokenParts[1]));
             logger.info(`JWT payload inspection: sub=${payload.sub}, user_id=${payload.user_id}, exp=${payload.exp}`);
           } else {
@@ -358,7 +350,6 @@ export function useAuth() {
         const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
         let isAdmin = false;
 
-        // Safely check for is_admin property in various locations
         const userData = data.user || {};
         const userDataObj = (data as any).user_data || {};
 
@@ -422,7 +413,6 @@ export function useAuth() {
         throw new Error("No Google credential provided");
       }
 
-      // Log attempt to authenticate with Google
       console.log("Attempting to authenticate with Google token");
       const data = await authApi.googleLogin(response.credential);
       console.log("Google login API response:", {
@@ -433,15 +423,13 @@ export function useAuth() {
       });
 
       if (data.success && data.access_token) {
-        // Calculate token expiration time
+
         const expiresAt = data.expires_in
           ? Date.now() + (data.expires_in * 1000)
           : Date.now() + (3600 * 1000);
 
-        // Get user data from the most appropriate source
         const userData = data.user || (data as any).user_data || {};
 
-        // Construct and set authentication state
         const authState: AuthState = {
           is_authenticated: true,
           user_id: data.user_id,
@@ -456,12 +444,9 @@ export function useAuth() {
         console.log("Setting auth state with token and user info");
         authStore.set(authState);
 
-        // Check if profile information is complete
         const requiredFields = ["gender", "date_of_birth", "security_question", "security_answer"];
         let missingFields: string[] = [];
 
-        // Always check for missing profile fields, regardless of what the server says
-        // This ensures we catch any incomplete fields even if the server doesn't flag it
           try {
           const logger = createLoggerWithPrefix("ProfileCheck");
           logger.info("Fetching profile to check for missing information");
@@ -470,7 +455,6 @@ export function useAuth() {
             if (userProfile?.user) {
             const profileData = userProfile.user;
 
-              // Check for missing required fields
             if (!profileData.gender || profileData.gender === "unknown") {
               missingFields.push("gender");
               logger.info("Missing gender information");
@@ -493,7 +477,6 @@ export function useAuth() {
 
             logger.info(`Profile check complete. Missing fields: ${missingFields.length > 0 ? missingFields.join(", ") : "None"}`);
 
-              // Update auth store with any available information
               authStore.update(state => ({
                 ...state,
               username: profileData.username || state.username,
@@ -502,12 +485,12 @@ export function useAuth() {
               }));
           } else {
             logger.warn("User profile data not available");
-            // If we can't get profile data, assume we need to complete profile
+
             missingFields = requiredFields;
             }
           } catch (profileError) {
             console.error("Failed to get user profile after Google login:", profileError);
-          // If we can't fetch the profile, assume we need to complete it
+
           missingFields = requiredFields;
         }
 
@@ -580,7 +563,6 @@ export function useAuth() {
     return state.access_token;
   };
 
-  // Check if token needs refresh and do it proactively
   const checkAndRefreshTokenIfNeeded = async () => {
     const state = get(authStore);
     if (!state.is_authenticated) {
@@ -599,7 +581,6 @@ export function useAuth() {
         } catch (error) {
           logger.error("Failed to refresh token during proactive check:", error);
 
-          // If token is completely expired, clear auth state
           if (timeUntilExpiry <= 0) {
             logger.warn("Token is completely expired, clearing auth state");
             authStore.logout();
@@ -611,7 +592,7 @@ export function useAuth() {
         logger.debug(`Token still valid for ${Math.floor(timeUntilExpiry/1000)}s, no refresh needed`);
       }
     } else if (state.is_authenticated) {
-      // We're authenticated but don't have proper refresh info
+
       logger.warn("Missing refresh token or expiry but user is authenticated - this may cause issues");
     }
 
@@ -636,7 +617,6 @@ export function useAuth() {
   };
 }
 
-// Add this helper function to handle API responses
 async function handleApiResponse(response: Response, errorMessage: string) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));

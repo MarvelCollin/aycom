@@ -16,30 +16,25 @@
 
   const debugLogger = createLoggerWithPrefix("DebugPanel");
 
-  // WebSocket debug state
   let wsStatus = "Unknown";
   let wsTestChatId = "";
   let wsTestResult = "";
   let isConnecting = false;
   let isDisconnecting = false;
 
-  // Search variables
   const searchQuery = "";
   let searchStatus = "";
   let searchResults: any[] = [];
 
-  // Subscribe to websocket store to track status
   const unsubscribeWs = websocketStore.subscribe(state => {
     wsStatus = state.connected ? "Connected" : (state.reconnecting ? "Reconnecting" : "Disconnected");
     if (state.lastError) {
       wsStatus += ` (Error: ${state.lastError})`;
     }
 
-    // Add to logs when status changes
     debugLogger.info(`WebSocket status changed: ${wsStatus}`);
   });
 
-  // Function to test WebSocket connection
   async function testWebSocketConnection() {
     if (!wsTestChatId) {
       wsTestResult = "Please enter a chat ID to test";
@@ -52,52 +47,40 @@
       wsTestResult = "Connecting...";
       debugLogger.info(`Testing WebSocket connection to chat: ${wsTestChatId}`);
 
-      // Create a WebSocket URL based on the API URL
       const apiUrl = appConfig.api.baseUrl;
       let wsProtocol = "ws:";
       if (apiUrl.startsWith("https:") || window.location.protocol === "https:") {
         wsProtocol = "wss:";
       }
 
-      // Get the domain part of the API URL without protocol
-      const domain = apiUrl.replace(/^https?:\/\//, "").split("/")[0];
+      const domain = apiUrl.replace(/^https?:\/\
 
-      // Get the API path without domain
       const apiPath = apiUrl.replace(/^https?:\/\/[^/]+/, "");
 
-      // Get token from auth state instead of direct import
       const token = authState && authState.accessToken ? authState.accessToken : null;
 
-      // Get user ID from auth state
       const userId = authState && authState.userId ? authState.userId : null;
 
-      // Construct WebSocket URL
-      let wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${wsTestChatId}/ws`;
+      let wsUrl = `${wsProtocol}
 
-      // Add authentication parameters
       const params: string[] = [];
 
-      // Add token as query parameter for authentication
       if (token) {
         params.push(`token=${token}`);
       }
 
-      // Add user_id as fallback or for direct connection without authentication
       if (userId) {
         params.push(`user_id=${userId}`);
       }
 
-      // Add query parameters if any
       if (params.length > 0) {
         wsUrl += `?${params.join("&")}`;
       }
 
       debugLogger.debug(`WebSocket URL: ${wsUrl}`);
 
-      // Create a WebSocket connection
       const ws = new WebSocket(wsUrl);
 
-      // Set a timeout for the connection attempt
       const connectionTimeout = setTimeout(() => {
         if (ws.readyState !== WebSocket.OPEN) {
           ws.close();
@@ -112,7 +95,6 @@
         wsTestResult = "Connected successfully";
         debugLogger.info("WebSocket test connection established");
 
-        // Send a test message
         try {
           ws.send(JSON.stringify({
             type: "ping",
@@ -126,7 +108,6 @@
           wsTestResult += " but failed to send test message";
         }
 
-        // Close the connection after 2 seconds
         setTimeout(() => {
           ws.close(1000, "Test completed");
           isConnecting = false;
@@ -159,7 +140,6 @@
     }
   }
 
-  // Function to connect to a chat via the websocketStore
   function connectToChat() {
     if (!wsTestChatId) {
       wsTestResult = "Please enter a chat ID to connect";
@@ -177,7 +157,6 @@
     }
   }
 
-  // Function to disconnect from a chat
   function disconnectFromChat() {
     if (!wsTestChatId) {
       wsTestResult = "Please enter a chat ID to disconnect";
@@ -195,7 +174,6 @@
     }
   }
 
-  // Check if is connected to a chat
   function checkConnectedToChat() {
     if (!wsTestChatId) {
       wsTestResult = "Please enter a chat ID to check";
@@ -208,10 +186,8 @@
       : `Not connected to chat ${wsTestChatId}`;
   }
 
-  // Get auth state
   const { getAuthState, subscribe } = useAuth();
 
-  // Initialize with real data from localStorage
   let authState;
   try {
     const storedAuth = localStorage.getItem("auth");
@@ -219,36 +195,33 @@
       try {
         const parsedAuth = JSON.parse(storedAuth);
 
-        // Verify if the stored auth data has real values or sample values
         if (parsedAuth.userId === "sample-user-id") {
           console.warn("Detected sample user ID in localStorage. Attempting to fetch real auth state.");
-          authState = getAuthState(); // Try to get the real state
+          authState = getAuthState(); 
         } else {
-          authState = parsedAuth; // Use the stored auth data
+          authState = parsedAuth; 
         }
       } catch (parseError) {
         console.error("Failed to parse auth data from localStorage:", parseError);
         authState = getAuthState();
       }
     } else {
-      authState = getAuthState(); // Fallback to hook state if no localStorage data
+      authState = getAuthState(); 
     }
   } catch (err) {
     console.error("Error loading auth data from storage:", err);
-    authState = getAuthState(); // Fallback on error
+    authState = getAuthState(); 
   }
 
-  // Before rendering UI, do one final check for sample data
   if (authState && authState.userId === "sample-user-id") {
     console.warn("Still showing sample user ID. Checking for alternative auth sources.");
 
-    // Try to get auth from another source using only JWT token
     try {
       const jwtToken = localStorage.getItem("auth") ?
         JSON.parse(localStorage.getItem("auth")).access_token : null;
 
       if (jwtToken) {
-        // Decode JWT to get user information
+
         try {
           const base64Url = jwtToken.split(".")[1];
           const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
@@ -258,7 +231,7 @@
 
           const tokenData = JSON.parse(jsonPayload);
           if (tokenData.sub) {
-            // Use real user ID from token
+
             authState.userId = tokenData.sub;
           }
         } catch (tokenError) {
@@ -270,24 +243,19 @@
     }
   }
 
-  // Subscribe to auth changes
   subscribe(newState => {
     authState = newState;
   });
 
-  // Store for debug panel visibility
   const isVisible = writable(false);
   let panelVisible = false;
 
-  // Store for log messages
   const logMessages = writable<{level: LogLevel; message: string; timestamp: Date; data?: any; stack?: string}[]>([]);
 
-  // Toggle the debug panel visibility
   function togglePanel() {
     panelVisible = !panelVisible;
     isVisible.set(panelVisible);
 
-    // Toggle body class for scroll locking
     if (typeof document !== "undefined") {
       if (panelVisible) {
         document.body.classList.add("debug-panel-open");
@@ -297,7 +265,6 @@
     }
   }
 
-  // Get log level options for the dropdown
   const logLevelOptions = [
     { value: LogLevel.TRACE, label: "TRACE" },
     { value: LogLevel.DEBUG, label: "DEBUG" },
@@ -307,10 +274,8 @@
     { value: LogLevel.NONE, label: "NONE" }
   ];
 
-  // Current log level (reactive)
   let currentLogLevel = logger.getLevel();
 
-  // Update the log level when changed
   function updateLogLevel(event: Event) {
     const select = event.target as HTMLSelectElement;
     const newLevel = parseInt(select.value) as LogLevel;
@@ -318,15 +283,13 @@
     currentLogLevel = newLevel;
   }
 
-  // Function to navigate to a route with bypass
   function navigateWithBypass(route: string) {
-    // Add a bypass parameter to skip any guards or checks
+
     const separator = route.includes("?") ? "&" : "?";
     const bypassParam = `${separator}debug_bypass=true`;
     window.location.href = `${route}${bypassParam}`;
   }
 
-  // Navigation routes
   const commonRoutes = [
     "/",
     "/login",
@@ -336,13 +299,11 @@
     "/profile"
   ];
 
-  // Function to get log level label
   function getLogLevelLabel(level: LogLevel): string {
     const option = logLevelOptions.find(opt => opt.value === level);
     return option ? option.label : "UNKNOWN";
   }
 
-  // Function to get log level color
   function getLogLevelColor(level: LogLevel): string {
     switch(level) {
       case LogLevel.ERROR: return "text-red-500";
@@ -354,17 +315,15 @@
     }
   }
 
-  // Clear all logs
   function clearLogs() {
     logMessages.set([]);
   }
 
-  // Utility function to safely stringify objects
   function safeStringify(obj: any, indent = 2): string {
     try {
       if (obj === null || obj === undefined) return String(obj);
       if (typeof obj === "object") {
-        // Handle circular references and complex objects
+
         const cache = new Set();
         const result = JSON.stringify(obj, (key, value) => {
           if (typeof value === "object" && value !== null) {
@@ -373,16 +332,14 @@
             }
             cache.add(value);
           }
-          // Handle Error objects specially
+
           if (value instanceof Error) {
             const errorObj: Record<string, any> = {};
 
-            // Get all properties including non-enumerable ones
             Object.getOwnPropertyNames(value).forEach(propName => {
               errorObj[propName] = value[propName as keyof Error];
             });
 
-            // Make sure we have the important properties
             if (!("message" in errorObj)) errorObj.message = value.message;
             if (!("stack" in errorObj)) errorObj.stack = value.stack;
 
@@ -398,7 +355,6 @@
     }
   }
 
-  // Function to extract stack trace from error
   function getStackTrace(error: any): string | undefined {
     if (!error) return undefined;
 
@@ -413,14 +369,12 @@
     return undefined;
   }
 
-  // Test logging at each level
   function testLogLevels() {
     logger.trace("This is a TRACE message");
     logger.debug("This is a DEBUG message");
     logger.info("This is an INFO message", null, { show_toast: true });
     logger.warn("This is a WARN message", null, { show_toast: true });
 
-    // Create a real error for testing
     try {
       throw new Error("This is a test error with stack trace");
     } catch (error) {
@@ -428,7 +382,6 @@
     }
   }
 
-  // Fetch user profile for debug purposes
   let userProfileInfo = null;
 
   async function fetchUserProfile() {
@@ -442,7 +395,7 @@
     }
 
     try {
-      // Log API request details for debugging
+
       logger.debug("API Request Details", {
         url: `${apiUrl}/users/profile`,
         tokenInfo: {
@@ -468,7 +421,6 @@
     }
   }
 
-  // Debug keyboard shortcuts handler
   function setupKeyboardShortcuts() {
     let konamiSequence = "";
 
@@ -478,7 +430,6 @@
         togglePanel();
       }
 
-      // Konami code: "kowlin"
       const pressedKey = event.key.toLowerCase();
       konamiSequence = (konamiSequence + pressedKey).slice(-6);
       if (konamiSequence === "kowlin") {
@@ -494,14 +445,12 @@
     return () => window.removeEventListener("keydown", handleKeyDown);
   }
 
-  // Override logger functions to capture logs
   const originalTrace = logger.trace;
   const originalDebug = logger.debug;
   const originalInfo = logger.info;
   const originalWarn = logger.warn;
   const originalError = logger.error;
 
-  // Override logger to capture logs
   logger.trace = function(message: string, data?: any, options?: any) {
     logMessages.update(logs => [
       { level: LogLevel.TRACE, message: String(message), timestamp: new Date(), data },
@@ -535,7 +484,7 @@
   };
 
   logger.error = function(message: string, data?: any, options?: any) {
-    // Extract stack trace if data is an error
+
     const stack = getStackTrace(data?.error || data);
 
     logMessages.update(logs => [
@@ -551,7 +500,6 @@
     return originalError.call(logger, message, data, options);
   };
 
-  // Expose debug commands to window
   if (typeof window !== "undefined") {
     (window as any).debugCommands = {
       toggleDebugPanel: togglePanel,
@@ -562,13 +510,11 @@
     };
   }
 
-  // Set up keyboard shortcuts when mounted
   import { onMount, onDestroy } from "svelte";
 
   let cleanupFunction;
   let logs: {level: LogLevel; message: string; timestamp: Date; data?: any; stack?: string}[] = [];
 
-  // Subscribe to logs
   const unsubscribeLogs = logMessages.subscribe(value => {
     logs = value;
   });
@@ -576,12 +522,10 @@
   onMount(() => {
     cleanupFunction = setupKeyboardShortcuts();
 
-    // Try to load user profile if authenticated
     if (authState.isAuthenticated) {
       fetchUserProfile();
     }
 
-    // Add initial log
     logger.info("Debug panel initialized");
   });
 
@@ -590,12 +534,10 @@
     if (unsubscribeLogs) unsubscribeLogs();
     if (unsubscribeWs) unsubscribeWs();
 
-    // Clean up body class
     if (typeof document !== "undefined") {
       document.body.classList.remove("debug-panel-open");
     }
 
-    // Restore original logger functions
     logger.trace = originalTrace;
     logger.debug = originalDebug;
     logger.info = originalInfo;
@@ -603,7 +545,6 @@
     logger.error = originalError;
   });
 
-  // Admin user creation state
   let adminFormData = {
     name: "",
     username: "",
@@ -622,7 +563,6 @@
   let adminCreationStatus = "";
   let isCreatingAdmin = false;
 
-  // Function to create admin user
   async function createAdmin() {
     if (!adminFormData.name || !adminFormData.username || !adminFormData.email || !adminFormData.password || !adminFormData.securityAnswer) {
       adminCreationStatus = "Please fill all required fields";
@@ -633,7 +573,6 @@
     try {
       isCreatingAdmin = true;
 
-      // Format date of birth
       const formattedDob = `${adminFormData.dateOfBirth.month}-${adminFormData.dateOfBirth.day}-${adminFormData.dateOfBirth.year}`;
 
       const adminData = {
@@ -641,13 +580,13 @@
         username: adminFormData.username,
         email: adminFormData.email,
         password: adminFormData.password,
-        confirm_password: adminFormData.password, // Using same password for confirmation
+        confirm_password: adminFormData.password, 
         gender: adminFormData.gender,
         date_of_birth: formattedDob,
         security_question: adminFormData.securityQuestion,
         security_answer: adminFormData.securityAnswer,
         is_admin: true,
-        is_verified: true // Auto-verify admin accounts
+        is_verified: true 
       };
 
       logger.info("Creating admin user", { email: adminData.email, username: adminData.username });
@@ -658,7 +597,6 @@
       logger.info("Admin user created successfully", { response });
       toastStore.showToast("Admin user created successfully", "success");
 
-      // Clear form
       adminFormData = {
         name: "",
         username: "",
@@ -683,7 +621,6 @@
     }
   }
 
-  // Security questions for admin creation
   const adminSecurityQuestions = [
     "What was your first pet's name?",
     "What is your mother's maiden name?",
@@ -692,12 +629,10 @@
     "What is your favorite book?"
   ];
 
-  // Date options
   const months = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const years = Array.from({ length: 80 }, (_, i) => String(2023 - i));
 
-  // Define a type for user objects
   type UserListItem = {
     id: string;
     username?: string;
@@ -728,7 +663,6 @@
     await loadUsers();
   });
 
-  // Load all users or search results
   async function loadUsers() {
     try {
       isLoading = true;
@@ -736,32 +670,29 @@
 
       let result;
       if (userSearchQuery.trim()) {
-        // Search users
+
         result = await searchUsers(userSearchQuery, currentPage, pageSize);
         userList = result.users || [];
         totalPages = result.pagination?.total_pages || result.totalPages || 1;
       } else {
-        // Get all users
+
         try {
           result = await getAllUsers(pageSize, currentPage);
           userList = result.users || [];
           totalPages = result.total_pages || result.totalPages || 1;
 
-          // Log users to check if admin status is included
           console.log("Loaded users:", userList);
           if (userList.length > 0) {
             console.log("First user admin status:", userList[0].is_admin);
             console.log("First user admin status type:", typeof userList[0].is_admin);
 
-            // Add diagnostic info directly in the panel for real-time debugging
             statusMessage = `Debug info - First user: ${userList[0].username || userList[0].id}, is_admin: ${String(userList[0].is_admin)}, type: ${typeof userList[0].is_admin}`;
           }
 
           logger.info(`Loaded ${userList.length} users`);        } catch (apiError) {
-          // Handle API errors more gracefully
+
           console.error("Error getting users:", apiError);
 
-          // Set error state instead of using mock data
           userList = [];
           totalPages = 0;
           statusMessage = `API error: ${apiError instanceof Error ? apiError.message : "Unknown error"}`;
@@ -777,29 +708,25 @@
     }
   }
 
-  // Handle search input with debounce
   function handleSearchInput() {
     if (searchTimeout) clearTimeout(searchTimeout);
 
     searchTimeout = setTimeout(() => {
-      currentPage = 1; // Reset to first page on search
+      currentPage = 1; 
       loadUsers();
     }, 500);
   }
 
-  // Handle page navigation
   function goToPage(page) {
     if (page < 1 || page > totalPages) return;
     currentPage = page;
     loadUsers();
   }
 
-  // Helper function to check if a user is an admin - use the utility function from auth.ts
   function isUserAdmin(user): boolean {
     return checkIsAdmin(user);
   }
 
-  // Toggle admin status for a user
   async function toggleAdminStatus(user) {
     if (isUpdatingAdmin) return;
 
@@ -807,7 +734,6 @@
       isUpdatingAdmin = true;
       statusMessage = "";
 
-      // Log the current admin status for debugging
       console.log("Current admin status:", user.is_admin);
       console.log("Type of admin status:", typeof user.is_admin);
       console.log("Full user object:", user);
@@ -815,7 +741,6 @@
       const newAdminStatus = !isUserAdmin(user);
       console.log("Setting admin status to:", newAdminStatus, "(boolean)");
 
-      // Check if user is authenticated
       const token = getAuthToken();
       if (!token) {
         logger.warn("User not authenticated, redirecting to login page");
@@ -834,7 +759,6 @@
 
       const result = await updateUserAdminStatus(user.id, newAdminStatus, true);
 
-      // Update the user in the list
       userList = userList.map(u => {
         if (u.id === user.id) {
           return { ...u, is_admin: newAdminStatus };
@@ -855,7 +779,6 @@
     }
   }
 
-  // Function to test user search
   async function testUserSearch() {
     try {
       searchStatus = "Searching...";
@@ -1184,7 +1107,7 @@
 {/if}
 
 <style>
-  /* Debug Panel Modal Overlay */
+
   .debug-panel-modal-overlay {
     position: fixed;
     top: 0;
@@ -1198,7 +1121,6 @@
     justify-content: center;
   }
 
-  /* Debug Panel Container */
   .debug-panel {
     width: 100%;
     max-width: 700px;
@@ -1212,7 +1134,6 @@
     overflow: hidden;
   }
 
-  /* Debug Panel Header */
   .debug-panel-header {
     display: flex;
     justify-content: space-between;
@@ -1249,7 +1170,6 @@
     background-color: rgba(255, 255, 255, 0.1);
   }
 
-  /* Debug Panel Content */
   .debug-panel-content {
     display: flex;
     flex-direction: column;
@@ -1258,7 +1178,6 @@
     padding: 20px;
   }
 
-  /* Sections */
   .section {
     margin-bottom: 24px;
   }
@@ -1279,7 +1198,6 @@
     margin-bottom: 8px;
   }
 
-  /* Cards */
   .card {
     background-color: #1e293b;
     border-radius: 6px;
@@ -1287,7 +1205,6 @@
     margin-bottom: 16px;
   }
 
-  /* Code Blocks */
   .code-block {
     background-color: #0f172a;
     border-radius: 6px;
@@ -1305,7 +1222,6 @@
     white-space: pre-wrap;
   }
 
-  /* Placeholders */
   .placeholder {
     display: flex;
     align-items: center;
@@ -1322,7 +1238,6 @@
     color: #fbbf24;
   }
 
-  /* Buttons */
   .debug-btn {
     padding: 6px 12px;
     border-radius: 4px;
@@ -1370,7 +1285,6 @@
     margin-right: 8px;
   }
 
-  /* Route Buttons */
   .route-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -1393,7 +1307,6 @@
     background-color: #334155;
   }
 
-  /* Select Input */
   .select-input {
     background-color: #1e293b;
     color: white;
@@ -1410,7 +1323,6 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
   }
 
-  /* Text Input */
   .text-input {
     background-color: #1e293b;
     color: white;
@@ -1428,7 +1340,6 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
   }
 
-  /* Utility classes */
   .mt-3 {
     margin-top: 12px;
   }
@@ -1443,12 +1354,10 @@
     justify-content: space-between;
   }
 
-  /* Auth status */
   .auth-status-authenticated {
     color: #4ade80;
   }
 
-  /* Log display */
   .log-display {
     margin-top: 16px;
   }
@@ -1533,7 +1442,6 @@
     font-style: italic;
   }
 
-  /* Log colors */
   .text-red-500 {
     color: #ef4444;
   }
@@ -1554,7 +1462,6 @@
     color: #64748b;
   }
 
-  /* Add WebSocket specific styles */
   .ws-status-connected {
     color: #4ade80;
     font-weight: 600;
@@ -1588,7 +1495,6 @@
     margin-bottom: 8px;
   }
 
-  /* Admin form styles */
   .admin-form {
     display: flex;
     flex-direction: column;
@@ -1633,7 +1539,6 @@
     margin-bottom: 16px;
   }
 
-  /* Admin User Management Styles */
   .user-list {
     margin-top: 12px;
     max-height: 400px;

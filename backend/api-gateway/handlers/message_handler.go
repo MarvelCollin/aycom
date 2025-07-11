@@ -120,7 +120,7 @@ func AddChatParticipant(c *gin.Context) {
 		return
 	}
 
-	// Parse request body to get the user to add
+	
 	var req struct {
 		UserID  string `json:"user_id" binding:"required"`
 		IsAdmin bool   `json:"is_admin"`
@@ -137,7 +137,7 @@ func AddChatParticipant(c *gin.Context) {
 
 	log.Printf("AddChatParticipant: User %s adding user %s to chat %s", currentUserID, targetUserID, chatID)
 
-	// Get the community service client
+	
 	if CommunityClient == nil {
 		log.Printf("AddChatParticipant: Community service client is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
@@ -147,7 +147,7 @@ func AddChatParticipant(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Call the community service to add the participant
+	
 	_, err := CommunityClient.AddChatParticipant(ctx, &communityProto.AddChatParticipantRequest{
 		ChatId:  chatID,
 		UserId:  targetUserID,
@@ -194,14 +194,14 @@ func RemoveChatParticipant(c *gin.Context) {
 
 	log.Printf("RemoveChatParticipant: Removing user %s from chat %s, requested by %s", participantID, chatID, userID)
 
-	// Get the community service client
+	
 	if CommunityClient == nil {
 		log.Printf("RemoveChatParticipant: Community service client is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
-	// Check if the requesting user is an admin or removing themselves
+	
 	isSelfRemoval := participantID == userID.(string)
 	isAdmin := false
 
@@ -219,7 +219,7 @@ func RemoveChatParticipant(c *gin.Context) {
 			return
 		}
 
-		// Check if the requesting user is an admin
+		
 		for _, participant := range participantsResp.Participants {
 			if participant.UserId == userID.(string) && participant.IsAdmin {
 				isAdmin = true
@@ -234,7 +234,7 @@ func RemoveChatParticipant(c *gin.Context) {
 		}
 	}
 
-	// Remove the participant
+	
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel2()
 
@@ -316,7 +316,7 @@ func ListChatParticipants(c *gin.Context) {
 
 	log.Printf("ListChatParticipants: Listing participants for chat %s, requested by user %s", chatID, userID)
 
-	// Get the community service client
+	
 	if CommunityClient == nil {
 		log.Printf("ListChatParticipants: Community service client is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
@@ -326,7 +326,7 @@ func ListChatParticipants(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Call the community service to get participants
+	
 	resp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
 		ChatId: chatID,
 	})
@@ -337,7 +337,7 @@ func ListChatParticipants(c *gin.Context) {
 		return
 	}
 
-	// Check if the user is a participant
+	
 	userIsParticipant := false
 	for _, participant := range resp.Participants {
 		if participant.UserId == userID.(string) {
@@ -346,14 +346,14 @@ func ListChatParticipants(c *gin.Context) {
 		}
 	}
 
-	// If user is not a participant, return a forbidden error
+	
 	if !userIsParticipant {
 		log.Printf("ListChatParticipants: User %s is not a participant in chat %s", userID, chatID)
 		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
 		return
 	}
 
-	// Enrich participant data with user information if possible
+	
 	participants := make([]gin.H, 0, len(resp.Participants))
 	for _, participant := range resp.Participants {
 		participantData := gin.H{
@@ -362,7 +362,7 @@ func ListChatParticipants(c *gin.Context) {
 			"joined_at": participant.JoinedAt.AsTime().Format(time.RFC3339),
 		}
 
-		// Get user details if user service is available
+		
 		if UserClient != nil {
 			userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
 			userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
@@ -411,7 +411,7 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	// Additional validation to ensure content is not empty or just whitespace
+	
 	if req.Content == "" || len(strings.TrimSpace(req.Content)) == 0 {
 		log.Printf("SendMessage: Empty message content provided")
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Message content cannot be empty")
@@ -420,7 +420,7 @@ func SendMessage(c *gin.Context) {
 
 	log.Printf("SendMessage request: chatID=%s, userID=%v, content=%s", chatID, userID, req.Content)
 
-	// Get the community service client
+	
 	client := GetCommunityServiceClient()
 	if client == nil {
 		log.Printf("SendMessage: Community service client is nil")
@@ -428,10 +428,10 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	// Debug logging for tracing purposes
+	
 	log.Printf("SendMessage: Checking if user %s is participant in chat %s", userID, chatID)
 
-	// Check if user is a participant in this chat
+	
 	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
 	if err != nil {
 		log.Printf("SendMessage: Error checking if user is participant: %v", err)
@@ -442,7 +442,7 @@ func SendMessage(c *gin.Context) {
 	if !isParticipant {
 		log.Printf("SendMessage: User %s is not a participant in chat %s", userID, chatID)
 
-		// Try to add the user as a participant
+		
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -464,7 +464,7 @@ func SendMessage(c *gin.Context) {
 	}
 
 	log.Printf("SendMessage: Calling community service to send message from user %s in chat %s", userID, chatID)
-	// Send the message using the community service client
+	
 	msgID, err := client.SendMessage(chatID, userID.(string), req.Content)
 	if err != nil {
 		log.Printf("SendMessage: Error from community service: %v", err)
@@ -474,11 +474,11 @@ func SendMessage(c *gin.Context) {
 
 	log.Printf("SendMessage: Message sent successfully with ID %s", msgID)
 
-	// Get timestamp for response
+	
 	timestamp := time.Now()
 
-	// **ADD WEBSOCKET BROADCAST AFTER SUCCESSFUL DATABASE SAVE**
-	// Create WebSocket message to broadcast to all chat participants
+	
+	
 	wsMessage := map[string]interface{}{
 		"type":       "text",
 		"content":    req.Content,
@@ -492,22 +492,22 @@ func SendMessage(c *gin.Context) {
 		"is_read":    false,
 	}
 
-	// Marshal the WebSocket message
+	
 	wsMessageBytes, wsErr := json.Marshal(wsMessage)
 	if wsErr != nil {
 		log.Printf("SendMessage: Error marshaling WebSocket message: %v", wsErr)
 	} else {
-		// Get WebSocket manager and broadcast the message
+		
 		wsManager := GetWebSocketManager()
 		if wsManager != nil {
-			// Create broadcast message
+			
 			broadcastMsg := BroadcastMessage{
 				ChatID:  chatID,
 				Message: wsMessageBytes,
 				UserID:  userID.(string),
 			}
 
-			// Send to broadcast channel (non-blocking)
+			
 			select {
 			case wsManager.broadcast <- broadcastMsg:
 				log.Printf("SendMessage: Message broadcasted via WebSocket to chat %s", chatID)
@@ -519,7 +519,7 @@ func SendMessage(c *gin.Context) {
 		}
 	}
 
-	// Return the message ID and details
+	
 	utils.SendSuccessResponse(c, 201, gin.H{
 		"message_id": msgID,
 		"message": gin.H{
@@ -583,7 +583,7 @@ func UnsendMessage(c *gin.Context) {
 		return
 	}
 
-	// Get chatID from query parameter
+	
 	chatID := c.Query("chat_id")
 	if chatID == "" {
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
@@ -598,10 +598,10 @@ func UnsendMessage(c *gin.Context) {
 
 	log.Printf("UnsendMessage: User %s attempting to unsend message %s in chat %s", userID, messageID, chatID)
 
-	// Handle temporary messages that haven't been saved to database yet
+	
 	if strings.HasPrefix(messageID, "temp-") {
 		log.Printf("UnsendMessage: Handling temporary message %s", messageID)
-		// For temporary messages, just return success since they're not in the database
+		
 		utils.SendSuccessResponse(c, 200, gin.H{
 			"message":      "Temporary message unsent successfully",
 			"message_id":   messageID,
@@ -619,8 +619,8 @@ func UnsendMessage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Call the community service directly to unsend the message
-	// Pass both chat_id and user_id via context
+	
+	
 	ctx = context.WithValue(ctx, "chat_id", chatID)
 	ctx = context.WithValue(ctx, "user_id", userID.(string))
 
@@ -629,7 +629,7 @@ func UnsendMessage(c *gin.Context) {
 	})
 
 	if err != nil {
-		// Extract and log details about the error
+		
 		log.Printf("UnsendMessage: Error unsending message: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to unsend message: "+err.Error())
 		return
@@ -659,14 +659,14 @@ func ListMessages(c *gin.Context) {
 
 	log.Printf("ListMessages request: chatID=%s, userID=%v", chatID, userID)
 
-	// Verify that the user is a participant in this chat
+	
 	if CommunityClient == nil {
 		log.Printf("ERROR: Community service client is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
-	// Check if user is a participant in this chat
+	
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -680,7 +680,7 @@ func ListMessages(c *gin.Context) {
 		return
 	}
 
-	// Check if the user is a participant
+	
 	userIsParticipant := false
 	for _, participant := range participantsResp.Participants {
 		if participant.UserId == userID.(string) {
@@ -692,7 +692,7 @@ func ListMessages(c *gin.Context) {
 	if !userIsParticipant {
 		log.Printf("User %s is not a participant in chat %s, attempting to add them", userID, chatID)
 
-		// Auto-add the user as a participant if they're trying to view messages
+		
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel2()
 
@@ -712,7 +712,7 @@ func ListMessages(c *gin.Context) {
 		userIsParticipant = true
 	}
 
-	// Get messages
+	
 	limit := 20
 	limitStr := c.DefaultQuery("limit", "20")
 	if limitVal, err := strconv.Atoi(limitStr); err == nil && limitVal > 0 {
@@ -742,7 +742,7 @@ func ListMessages(c *gin.Context) {
 
 	log.Printf("Retrieved %d messages from community service", len(resp.Messages))
 
-	// Process messages and add sender information
+	
 	messages := make([]gin.H, 0, len(resp.Messages))
 	for _, msg := range resp.Messages {
 		timestamp := time.Now().Unix()
@@ -750,7 +750,7 @@ func ListMessages(c *gin.Context) {
 			timestamp = msg.SentAt.AsTime().Unix()
 		}
 
-		// Get sender information from user service if available
+		
 		senderName := ""
 		senderAvatar := ""
 		if UserClient != nil {
@@ -777,7 +777,7 @@ func ListMessages(c *gin.Context) {
 			"sender_avatar": senderAvatar,
 			"content":       msg.Content,
 			"timestamp":     timestamp,
-			"is_read":       !msg.Unsent, // Using Unsent as a proxy for read status
+			"is_read":       !msg.Unsent, 
 			"is_edited":     false,
 			"is_deleted":    msg.DeletedForAll,
 		})
@@ -901,23 +901,23 @@ func GetChatHistoryList(c *gin.Context) {
 
 	formattedChats := make([]gin.H, 0, len(chats))
 	for _, chat := range chats {
-		// Get participants with user details
+		
 		enrichedParticipants := make([]gin.H, 0)
 
-		// Get participant IDs from the chat
+		
 		participantIDs, err := client.GetChatParticipants(chat.ID)
 		if err != nil {
 			log.Printf("Error fetching participants for chat %s: %v", chat.ID, err)
-			// Continue with empty participants list
+			
 		} else {
-			// Fetch user details for each participant
+			
 			for _, participantID := range participantIDs {
 				participantData := gin.H{
 					"id":      participantID,
 					"user_id": participantID,
 				}
 
-				// Get user details if user service is available
+				
 				if UserClient != nil {
 					userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
 					userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
@@ -955,7 +955,7 @@ func GetChatHistoryList(c *gin.Context) {
 	})
 }
 
-// DeleteChat handles the deletion of a chat for a user (client-side only)
+
 func DeleteChat(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {

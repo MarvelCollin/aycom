@@ -8,16 +8,16 @@ import (
 	"os"
 	"strings"
 	"time"
+	userpb "aycom/backend/proto/user"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/utils"
-	userpb "aycom/backend/proto/user"
 )
 
-// Claims represents the JWT claims used for authentication
+
 type Claims struct {
 	UserID string `json:"user_id"`
 	jwt.RegisteredClaims
@@ -53,7 +53,7 @@ func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:3000"
+			origin = "http:
 		}
 
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
@@ -130,7 +130,7 @@ func JWTAuth(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Verify token
+		
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -159,9 +159,9 @@ func JWTAuth(jwtSecret string) gin.HandlerFunc {
 		}
 
 		log.Printf("JWTAuth: Valid token for user ID: %s", claims.Subject)
-		// Set claims in context for later use
+		
 		c.Set("userID", claims.Subject)
-		c.Set("userId", claims.Subject) // For backward compatibility
+		c.Set("userId", claims.Subject) 
 		c.Set("userClaims", claims)
 
 		c.Next()
@@ -241,7 +241,7 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		// Get user from user service
+		
 		if handlers.UserClient == nil {
 			log.Printf("AdminOnly: UserClient is nil")
 			utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service is unavailable")

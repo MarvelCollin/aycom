@@ -39,7 +39,6 @@
   export let showRightSidebar = true;
   export let pageTitle = "";
 
-  // Setup viewport detection
   let isMobile = false;
   let isTablet = false;
   let isSmallDesktop = false;
@@ -49,19 +48,15 @@
   let showSearchBar = false;
   let searchQuery = "";
 
-  // Get unread notification count
   let unreadNotificationCount = 0;
   notificationStore.unreadCount.subscribe(count => {
     unreadNotificationCount = count;
   });
 
-  // Track if notification WebSocket is connected
   let notificationWsConnected = false;
 
-  // List of paths where notification WebSocket should be active
   const notificationEnabledPaths = ["/feed", "/notifications"];
 
-  // Handle WebSocket connections based on current path
   function handleWebSocketConnection(path) {
     const shouldConnect = isAuthenticated() && notificationEnabledPaths.includes(path);
 
@@ -76,7 +71,6 @@
     }
   }
 
-  // Subscribe to page changes
   const unsubscribePageStore = page.subscribe(pageInfo => {
     if (pageInfo && pageInfo.route) {
       handleWebSocketConnection(pageInfo.route.id);
@@ -102,14 +96,12 @@
     };
   });
 
-  // Clean up subscriptions when component is destroyed
   onDestroy(() => {
-    // Unsubscribe from page store
+
     if (unsubscribePageStore) {
       unsubscribePageStore();
     }
 
-    // Disconnect WebSocket if connected
     if (notificationWsConnected) {
       notificationWebsocketStore.disconnect();
       notificationWsConnected = false;
@@ -157,7 +149,6 @@
     document.getElementById("mobile-search-input")?.focus();
   }
 
-  // Get the current path for active link styling
   let currentPath = "";
   onMount(() => {
     currentPath = window.location.pathname;
@@ -469,7 +460,6 @@
     }
   }
 
-  /* Mobile navigation styling */
   .mobile-nav {
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
   }
@@ -558,7 +548,6 @@
     max-width: 1440px;
   }
 
-  /* Adjust sidebar width */
   @media (min-width: 1281px) {
     .app-layout {
       grid-template-columns: 1fr 4fr 1fr;
@@ -588,7 +577,7 @@
     .app-layout {
       grid-template-columns: 1fr;
       grid-template-areas: "main";
-      padding-bottom: 60px; /* Make room for mobile nav */
+      padding-bottom: 60px; 
     }
 
     .sidebar {
@@ -655,7 +644,6 @@
     background-color: var(--dark-bg-primary);
   }
 
-  /* Custom styles for content containment */
   :global(.view-replies-button) {
     padding: var(--space-2) 0;
     width: auto;

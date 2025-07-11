@@ -5,9 +5,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/streadway/amqp"
+
 	"aycom/backend/event-bus/publisher"
 
-	"github.com/streadway/amqp"
 )
 
 type ThreadEventHandler struct {
@@ -28,7 +29,7 @@ func (h *ThreadEventHandler) Start() error {
 	maxRetries := 5
 
 	for retries < maxRetries {
-		h.conn, err = amqp.Dial(getEnvFromHandler("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
+		h.conn, err = amqp.Dial(getEnvFromHandler("RABBITMQ_URL", "amqp:
 		if err == nil {
 			break
 		}
@@ -189,11 +190,11 @@ func (h *ThreadEventHandler) handleThreadLiked(event publisher.Event) {
 
 	log.Printf("Thread %s was liked by user %s", threadID, userID)
 
-	// Here you can add logic to:
-	// - Update analytics/metrics
-	// - Send notifications to thread author
-	// - Update recommendation algorithms
-	// - Invalidate cache for thread stats
+	
+	
+	
+	
+	
 }
 
 func (h *ThreadEventHandler) handleThreadUnliked(event publisher.Event) {
@@ -213,10 +214,10 @@ func (h *ThreadEventHandler) handleThreadUnliked(event publisher.Event) {
 
 	log.Printf("Thread %s was unliked by user %s", threadID, userID)
 
-	// Here you can add logic to:
-	// - Update analytics/metrics
-	// - Update recommendation algorithms
-	// - Invalidate cache for thread stats
+	
+	
+	
+	
 }
 
 func (h *ThreadEventHandler) handleThreadBookmarked(event publisher.Event) {
@@ -236,11 +237,11 @@ func (h *ThreadEventHandler) handleThreadBookmarked(event publisher.Event) {
 
 	log.Printf("Thread %s was bookmarked by user %s", threadID, userID)
 
-	// Here you can add logic to:
-	// - Update user preferences for recommendations
-	// - Send notifications to thread author
-	// - Update analytics
-	// - Invalidate cache for user bookmarks
+	
+	
+	
+	
+	
 }
 
 func (h *ThreadEventHandler) handleThreadUnbookmarked(event publisher.Event) {
@@ -260,34 +261,34 @@ func (h *ThreadEventHandler) handleThreadUnbookmarked(event publisher.Event) {
 
 	log.Printf("Thread %s was unbookmarked by user %s", threadID, userID)
 
-	// Here you can add logic to:
-	// - Update user preferences
-	// - Update analytics
-	// - Invalidate cache for user bookmarks
+	
+	
+	
+	
 }
 
 func (h *ThreadEventHandler) handleThreadCreated(event publisher.Event) {
 	log.Printf("Processing thread created event: %v", event)
 
-	// Logic for when a new thread is created
-	// - Send notifications to followers
-	// - Update community statistics
-	// - Trigger content moderation
+	
+	
+	
+	
 }
 
 func (h *ThreadEventHandler) handleThreadUpdated(event publisher.Event) {
 	log.Printf("Processing thread updated event: %v", event)
 
-	// Logic for when a thread is updated
-	// - Invalidate caches
-	// - Re-trigger content moderation if needed
+	
+	
+	
 }
 
 func (h *ThreadEventHandler) handleThreadDeleted(event publisher.Event) {
 	log.Printf("Processing thread deleted event: %v", event)
 
-	// Logic for when a thread is deleted
-	// - Clean up related data
-	// - Update statistics
-	// - Invalidate caches
+	
+	
+	
+	
 }

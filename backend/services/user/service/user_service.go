@@ -358,7 +358,7 @@ func (s *userService) LoginUser(ctx context.Context, req *userpb.LoginUserReques
 		return nil, status.Error(codes.Unauthenticated, "Invalid email or password")
 	}
 
-	// Check if user is banned
+	
 	if user.IsBanned {
 		log.Printf("Banned user %s attempted to login", user.Email)
 		return nil, status.Error(codes.PermissionDenied, "Your account has been banned. Please contact support.")

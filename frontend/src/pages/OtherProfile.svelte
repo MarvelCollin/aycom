@@ -26,15 +26,15 @@
   import ArrowLeftIcon from "svelte-feather-icons/src/icons/ArrowLeftIcon.svelte";
   import LinkIcon from "svelte-feather-icons/src/icons/LinkIcon.svelte";
   import MapPinIcon from "svelte-feather-icons/src/icons/MapPinIcon.svelte";
-  import CheckCircleIcon from "svelte-feather-icons/src/icons/CheckCircleIcon.svelte";  // Use the extended interface instead of defining custom ones
+  import CheckCircleIcon from "svelte-feather-icons/src/icons/CheckCircleIcon.svelte";  
   type Thread = ExtendedTweet;
   type Reply = ExtendedTweet;
     interface ThreadMedia {
     id: string;
     url: string;
     type: "image" | "video" | "gif";
-    thread_id?: string;  // Make thread_id optional to handle potential missing values
-    threadId?: string;   // Add alternative property name
+    thread_id?: string;  
+    threadId?: string;   
     created_at?: string;
     [key: string]: any;
   }
@@ -52,7 +52,6 @@
     logger.debug(`Profile rendering for userId: ${userId}, currentUserId: ${currentUserId}`);
   }
 
-  // Define proper interface for profile data with snake_case
   interface ProfileData {
     id: string;
     username: string;
@@ -68,10 +67,9 @@
     is_private: boolean;
     is_following: boolean;
     is_blocked: boolean;
-    is_verified: boolean;  // Added this field that was missing
+    is_verified: boolean;  
   }
 
-  // Initial profile data using the new interface
   let profileData: ProfileData = {
     id: "",
     username: "",
@@ -87,7 +85,7 @@
     is_private: false,
     is_following: false,
     is_blocked: false,
-    is_verified: false   // Initialize is_verified field
+    is_verified: false   
   };
 
   let posts: Thread[] = [];
@@ -109,7 +107,6 @@
   const MAX_RETRIES = 3;
   let isFollowRequestPending = false;
 
-  // Add state for followers/following modals
   let showFollowersModal = false;
   let showFollowingModal = false;
   interface UserFollower {
@@ -128,9 +125,7 @@
   let isLoadingFollowing = false;
   let followersError = "";
   let followingError = "";
-    // Using the imported ensureTweetFormat function instead of local implementation
 
-  // Format join date helper
   function formatJoinDate(dateString: string): string {
     if (!dateString) return "Unknown join date";
 
@@ -141,7 +136,6 @@
     return `Joined ${date.toLocaleDateString("en-US", options)}`;
   }
 
-  // Main functionality for the profile page
   async function loadProfileData() {
     logger.debug(`Loading profile data for user: ${userId}`);
     isLoading = true;
@@ -158,27 +152,23 @@
         throw new Error("Failed to load user profile");
       }
 
-      // Extract initial follow state from the API response - more robust check
       let initialFollowState = false;
 
-      // Check various formats the API might return for follow status
       const followValue = response.user.is_following;
       if (followValue === true || followValue === 1 || followValue === "1" ||
           followValue === "true" || followValue === "t" ||
           followValue === "yes" || followValue === "y") {
         initialFollowState = true;
       } else if (typeof followValue === "object" && followValue !== null) {
-        // Some APIs might return an object with a status field
+
         if (followValue.status === true || followValue.status === 1 ||
             followValue.status === "true" || followValue.following === true) {
           initialFollowState = true;
         }
       }
 
-      // Log the detected follow state for debugging
       logger.debug(`Follow state detected: ${initialFollowState} (from value: ${JSON.stringify(followValue)})`);
 
-      // Build profile data object
       profileData = {
         id: response.user.id || "",
         username: response.user.username || "",
@@ -199,26 +189,22 @@
 
       logger.debug("Profile data processed:", profileData);
 
-      // If we have a user ID and we're logged in, double-check follow status using dedicated API
       if (profileData.id && currentUserId && currentUserId !== profileData.id) {
         try {
           logger.debug(`Double-checking follow status with dedicated API for current user ${currentUserId} following ${profileData.id}...`);
           isLoadingFollowState = true;
 
-          // Make a direct API call to check follow status
           const followStatus = await checkFollowStatus(profileData.id);
           logger.debug(`Follow status from dedicated API: ${followStatus}`);
 
-          // Update the follow status based on the dedicated API response
           profileData.is_following = followStatus === true;
 
-          // Force refresh UI by creating a new object
           profileData = { ...profileData };
 
           logger.debug(`Final follow state after API check: ${profileData.is_following}`);
         } catch (error) {
           logger.error("Error checking follow status:", error);
-          // Keep the initial follow state if the check fails
+
         } finally {
           isLoadingFollowState = false;
         }
@@ -226,8 +212,6 @@
         logger.debug("Skipping follow status check - no user ID or same user");
       }
 
-      // Remove the automatic tab content loading - we'll do this explicitly in onMount
-      // await loadTabContent(activeTab);
     } catch (error: any) {
       logger.error("Error loading profile data:", error);
       errorMessage = error.message || "Failed to load profile data";
@@ -235,7 +219,7 @@
 
       if (retryCount < MAX_RETRIES) {
         logger.debug(`Retrying profile load (attempt ${retryCount + 1} of ${MAX_RETRIES})...`);
-        setTimeout(loadProfileData, 1000); // Retry after 1 second
+        setTimeout(loadProfileData, 1000); 
       }
     } finally {
       isLoading = false;
@@ -251,7 +235,6 @@
     isLoading = true;
     logger.debug(`Loading tab content for ${tab}`);
 
-    // Make sure we have a valid username to use
     if (!profileData.id || !profileData.username) {
       logger.error("Cannot load tab content: profileData is not fully loaded");
       errorMessage = "Unable to load profile data. Please refresh the page.";
@@ -259,34 +242,31 @@
       return;
     }
 
-    // Log which username/ID we're using for API calls
     logger.debug(`Using username: ${profileData.username} and ID: ${profileData.id} for content loading`);
 
     try {
       if (tab === "posts") {
-        // Log the API call we're about to make
+
         logger.debug(`Calling getUserThreads API with username: ${profileData.username}`);
 
-        // If we have an ID but not a username, use the ID instead
         const userIdentifier = profileData.username || profileData.id;
         const response = await getUserThreads(userIdentifier);
         logger.debug("Posts API response:", response);
 
-        // Handle different response structures
         if (response && response.threads) {
-          // Direct threads array in response
+
           posts = response.threads.map(thread => ensureTweetFormat(thread));
           logger.debug(`Loaded ${posts.length} posts from response.threads`);
         } else if (response && response.data && Array.isArray(response.data.threads)) {
-          // Threads nested in data.threads
+
           posts = response.data.threads.map(thread => ensureTweetFormat(thread));
           logger.debug(`Loaded ${posts.length} posts from response.data.threads`);
         } else if (response && response.data && Array.isArray(response.data)) {
-          // Direct array in data
+
           posts = response.data.map(thread => ensureTweetFormat(thread));
           logger.debug(`Loaded ${posts.length} posts from response.data array`);
         } else if (response && Array.isArray(response)) {
-          // Response is directly an array
+
           posts = response.map(thread => ensureTweetFormat(thread));
           logger.debug(`Loaded ${posts.length} posts from direct array`);
         } else {
@@ -298,16 +278,16 @@
         logger.debug("Replies API response:", response);
 
         if (response && response.replies) {
-          // Direct replies array in response
+
           replies = response.replies.map(reply => ensureTweetFormat(reply));
         } else if (response && response.data && Array.isArray(response.data.replies)) {
-          // Replies nested in data.replies
+
           replies = response.data.replies.map(reply => ensureTweetFormat(reply));
         } else if (response && response.data && Array.isArray(response.data)) {
-          // Direct array in data
+
           replies = response.data.map(reply => ensureTweetFormat(reply));
         } else if (response && Array.isArray(response)) {
-          // Response is directly an array
+
           replies = response.map(reply => ensureTweetFormat(reply));
         } else {
           replies = [];
@@ -320,7 +300,7 @@
         logger.debug("Media API response:", response);
 
         let mediaFound = false;
-        
+
         if (response && response.media && response.media.length > 0) {
           media = response.media;
           mediaFound = true;
@@ -334,18 +314,16 @@
           media = response;
           mediaFound = true;
         }
-        
-        // If no media was found through API, use mock data
+
         if (!mediaFound) {
           logger.debug("No media found in API response, generating mock media");
-          
-          // Generate mock media content for demonstration
+
           const mockMediaItems: ThreadMedia[] = Array.from({ length: 6 }, (_, index) => {
             const isVideo = Math.random() > 0.7;
             return {
               id: `media-${profileData.id}-${index + 1}`,
               thread_id: `thread-${profileData.id}-${index + 1}`,
-              url: `https://picsum.photos/400/300?random=${profileData.id}-${index + 1}`,
+              url: `https:
               type: isVideo ? "video" : "image",
               created_at: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
               content: `Media post ${index + 1} with visual content related to ${profileData.name}'s activities and interests.`,
@@ -358,7 +336,7 @@
               views_count: Math.floor(Math.random() * 500)
             };
           });
-          
+
           media = mockMediaItems;
         }
 
@@ -373,7 +351,6 @@
     }
   }
 
-  // Toggle follow state
   async function toggleFollow() {
     if (!isAuthenticated() || isFollowRequestPending) return;
 
@@ -383,7 +360,7 @@
       logger.debug(`Beginning toggleFollow for user ${profileData.id}, current state: is_following=${profileData.is_following}`);
 
       if (profileData.is_following) {
-        // Unfollow
+
         logger.debug(`Attempting to unfollow user ${profileData.id}`);
         const response = await unfollowUser(profileData.id);
         logger.debug("Unfollow API response:", response);
@@ -394,9 +371,9 @@
           toastStore.showToast(`Unfollowed @${profileData.username}`, "success");
           logger.debug(`Successfully unfollowed user ${profileData.id}, new follower count: ${profileData.follower_count}`);
         } else {
-          // Handle error but check if the unfollow was actually successful despite error message
+
           if (response.is_now_following === false) {
-            // API indicates successful unfollow despite error
+
             profileData.is_following = false;
             profileData.follower_count = Math.max(0, profileData.follower_count - 1);
             toastStore.showToast(`Unfollowed @${profileData.username}`, "success");
@@ -406,7 +383,7 @@
           }
         }
       } else {
-        // Follow
+
         logger.debug(`Attempting to follow user ${profileData.id}`);
         const response = await followUser(profileData.id);
         logger.debug("Follow API response:", response);
@@ -417,9 +394,9 @@
           toastStore.showToast(`Now following @${profileData.username}`, "success");
           logger.debug(`Successfully followed user ${profileData.id}, new follower count: ${profileData.follower_count}`);
         } else {
-          // Handle error but check if the follow was actually successful despite error message
+
           if (response.is_now_following === true) {
-            // API indicates successful follow despite error
+
             profileData.is_following = true;
             profileData.follower_count += 1;
             toastStore.showToast(`Now following @${profileData.username}`, "success");
@@ -430,19 +407,17 @@
         }
       }
 
-      // Force refresh UI
       profileData = { ...profileData };
     } catch (error: any) {
       logger.error("Error toggling follow state:", error);
       toastStore.showToast(error.message || "Failed to update follow status", "error");
 
-      // Double-check the actual follow status after error to ensure UI is in sync
       try {
         const actualFollowStatus = await checkFollowStatus(profileData.id);
         if (actualFollowStatus !== profileData.is_following) {
           logger.debug(`Follow status mismatch after error! API: ${actualFollowStatus}, UI: ${profileData.is_following}. Correcting UI.`);
           profileData.is_following = actualFollowStatus;
-          // Force UI refresh
+
           profileData = { ...profileData };
         }
       } catch (followCheckError) {
@@ -453,14 +428,12 @@
     }
   }
 
-  // Navigation
   function navigateToProfile(userId: string) {
     if (userId) {
       window.location.href = `/profile/${userId}`;
     }
   }
 
-  // Load followers data
   async function loadFollowers() {
     if (isLoadingFollowers) return;
 
@@ -472,17 +445,15 @@
       logger.debug(`Loading followers for user ${profileData.id}`);
       const response = await getUserFollowers(profileData.id);
 
-      // Log full response for debugging
       logger.debug("Followers API raw response:", JSON.stringify(response));
 
-      // Handle response data based on structure
       if (response && response.data && Array.isArray(response.data.followers)) {
         followersList = response.data.followers;
         logger.debug(`Extracted ${followersList.length} followers from response.data.followers`);
       } else if (response && Array.isArray(response.followers)) {
         followersList = response.followers;
         logger.debug(`Extracted ${followersList.length} followers from response.followers`);
-      } else {        // Try to find the followers data in any possible location
+      } else {        
         interface ArrayInfo {
           key: string;
           data: UserFollower[];
@@ -492,7 +463,7 @@
         const possibleFollowersArrays: ArrayInfo[] = [];
 
         if (response && typeof response === "object") {
-          // Try to find arrays in the response object
+
           Object.keys(response).forEach(key => {
             if (Array.isArray(response[key])) {
               possibleFollowersArrays.push({
@@ -501,7 +472,7 @@
                 length: response[key].length
               });
             } else if (response[key] && typeof response[key] === "object") {
-              // Check one level deeper
+
               Object.keys(response[key]).forEach(subKey => {
                 if (Array.isArray(response[key][subKey])) {
                   possibleFollowersArrays.push({
@@ -516,13 +487,13 @@
         }
 
         if (possibleFollowersArrays.length > 0) {
-          // Use the first array found
+
           logger.debug("Found possible followers arrays:", possibleFollowersArrays);
           followersList = possibleFollowersArrays[0].data;
           logger.debug(`Using array from ${possibleFollowersArrays[0].key} with ${followersList.length} items`);
         } else {
           logger.warn("Unexpected followers data format:", response);
-            // API failed - set appropriate error
+
           if (profileData.follower_count > 0) {
             followersError = `Failed to load followers data. Expected ${profileData.follower_count} followers but API returned no data.`;
           } else {
@@ -534,7 +505,7 @@
       logger.debug(`Loaded ${followersList.length} followers`);
     } catch (error) {
       logger.error("Error loading followers:", error);
-        // API error - set appropriate error message
+
       if (profileData.follower_count > 0) {
         followersError = `Failed to load followers after API error. Expected ${profileData.follower_count} followers.`;
       } else {
@@ -545,7 +516,6 @@
     }
   }
 
-  // Load following data
   async function loadFollowing() {
     if (isLoadingFollowing) return;
 
@@ -557,17 +527,15 @@
       logger.debug(`Loading following for user ${profileData.id}`);
       const response = await getUserFollowing(profileData.id);
 
-      // Log full response for debugging
       logger.debug("Following API raw response:", JSON.stringify(response));
 
-      // Handle response data based on structure
       if (response && response.data && Array.isArray(response.data.following)) {
         followingList = response.data.following;
         logger.debug(`Extracted ${followingList.length} following from response.data.following`);
       } else if (response && Array.isArray(response.following)) {
         followingList = response.following;
         logger.debug(`Extracted ${followingList.length} following from response.following`);
-      } else {        // Try to find the following data in any possible location
+      } else {        
         interface ArrayInfo {
           key: string;
           data: UserFollower[];
@@ -577,7 +545,7 @@
         const possibleFollowingArrays: ArrayInfo[] = [];
 
         if (response && typeof response === "object") {
-          // Try to find arrays in the response object
+
           Object.keys(response).forEach(key => {
             if (Array.isArray(response[key])) {
               possibleFollowingArrays.push({
@@ -586,7 +554,7 @@
                 length: response[key].length
               });
             } else if (response[key] && typeof response[key] === "object") {
-              // Check one level deeper
+
               Object.keys(response[key]).forEach(subKey => {
                 if (Array.isArray(response[key][subKey])) {
                   possibleFollowingArrays.push({
@@ -601,14 +569,13 @@
         }
 
         if (possibleFollowingArrays.length > 0) {
-          // Use the first array found
+
           logger.debug("Found possible following arrays:", possibleFollowingArrays);
           followingList = possibleFollowingArrays[0].data;
           logger.debug(`Using array from ${possibleFollowingArrays[0].key} with ${followingList.length} items`);
-        } else {          // API failed but response format was unexpected
+        } else {          
           logger.warn("Unexpected following data format:", response);
 
-          // API failed - set appropriate error message
           if (profileData.following_count > 0) {
             followingError = `Failed to load following data. Expected ${profileData.following_count} following but API returned unexpected format.`;
           } else {
@@ -621,7 +588,6 @@
     } catch (error) {
       logger.error("Error loading following:", error);
 
-      // If the API fails but we know the user is following people, create placeholder data
       if (profileData.following_count > 0) {
         logger.debug("Creating mock following data after API error");
         followingList = Array.from({ length: Math.min(profileData.following_count, 5) }, (_, i) => ({
@@ -640,7 +606,6 @@
     }
   }
 
-  // Open followers modal
   function openFollowersModal() {
     if (profileData.follower_count > 0) {
       showFollowersModal = true;
@@ -648,7 +613,6 @@
     }
   }
 
-  // Open following modal
   function openFollowingModal() {
     if (profileData.following_count > 0) {
       showFollowingModal = true;
@@ -656,18 +620,16 @@
     }
   }
 
-  // Close modals
   function closeModals() {
     showFollowersModal = false;
     showFollowingModal = false;
   }
 
-  // Handle follow/unfollow a user from the modals
   async function handleToggleFollow(userId: string, isCurrentlyFollowing: boolean) {
     if (!isAuthenticated() || isFollowRequestPending) return;
 
     try {
-      // Find the user in both lists to update their status
+
       const updateFollowersList = () => {
         followersList = followersList.map(user => {
           if (user.id === userId) {
@@ -687,7 +649,7 @@
       };
 
       if (isCurrentlyFollowing) {
-        // Unfollow the user
+
         const response = await unfollowUser(userId);
         if (response.success) {
           updateFollowersList();
@@ -697,7 +659,7 @@
           throw new Error(response.message || "Failed to unfollow user");
         }
       } else {
-        // Follow the user
+
         const response = await followUser(userId);
         if (response.success) {
           updateFollowersList();
@@ -719,10 +681,9 @@
     if (userId) {
       try {
         await loadProfileData();
-        // Log the profile data after loading
+
         logger.debug(`Profile data loaded, username: ${profileData.username}, id: ${profileData.id}`);
 
-        // Load initial tab content explicitly after profile data is loaded
         if (profileData.username) {
           logger.debug(`Loading initial tab content for ${activeTab}`);
           await loadTabContent(activeTab);
@@ -740,7 +701,7 @@
       errorMessage = "Invalid user ID";
       isLoading = false;
       toastStore.showToast("Invalid user profile ID", "error");
-      // Redirect to home after a short delay if ID is invalid
+
       setTimeout(() => {
         window.location.href = "/";
       }, 2000);
@@ -855,7 +816,7 @@
           <div class="profile-meta-item">
             <LinkIcon size="14" />
             <a
-              href={profileData.website.startsWith("http") ? profileData.website : `https://${profileData.website}`}
+              href={profileData.website.startsWith("http") ? profileData.website : `https:
               target="_blank"
               rel="noopener noreferrer"
               class="profile-website"
@@ -968,7 +929,7 @@
                     </div>
                   </div>
                 </div>
-                
+
                 <div class="media-post-content">
                   {#if mediaItem.content}
                     <p>{mediaItem.content}</p>
@@ -989,7 +950,7 @@
                     {/if}
                   </div>
                 </div>
-                
+
                 <div class="media-post-actions">
                   <div class="action-button">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1179,7 +1140,7 @@
 {/if}
 
 <style>
-  /* Profile container styling */
+
   .profile-container {
     width: 100%;
     max-width: 100%;
@@ -1192,7 +1153,6 @@
     border-right: 1px solid var(--border-color);
   }
 
-  /* Profile header styling */
   .profile-header-container {
     position: relative;
     width: 100%;
@@ -1248,7 +1208,6 @@
     pointer-events: none;
   }
 
-  /* Avatar styling */
   .profile-avatar-container {
     position: relative;
     margin-top: -72px;
@@ -1290,7 +1249,6 @@
     height: 100%;
   }
 
-  /* Profile details */
   .profile-details {
     padding: 4px 16px;
   }
@@ -1341,7 +1299,6 @@
     background-color: #272c30;
   }
 
-  /* Following button - exactly match Twitter's styling */
   .profile-following-button {
     padding: 6px 16px;
     border-radius: 20px;
@@ -1363,7 +1320,6 @@
     border-color: rgba(244, 33, 46, 0.4);
   }
 
-  /* Control text visibility for hover state */
   .profile-following-button .following-text {
     display: inline;
   }
@@ -1380,7 +1336,6 @@
     display: inline;
   }
 
-  /* Loading indicator for buttons */
   .loading-indicator {
     display: inline-block;
     width: 14px;
@@ -1454,7 +1409,6 @@
     text-decoration: underline;
   }
 
-  /* Profile stats */
   .profile-stats {
     display: flex;
     gap: 20px;
@@ -1485,7 +1439,6 @@
     color: var(--text-primary);
   }
 
-  /* Tab Navigation */
   .profile-tabs {
     display: flex;
     border-bottom: 1px solid var(--border-color);
@@ -1539,7 +1492,6 @@
     to { width: 56px; opacity: 1; }
   }
 
-  /* Profile content */
   .profile-content {
     min-height: 300px;
     padding: 0;
@@ -1710,7 +1662,6 @@
     color: var(--text-primary, #0f1419);
   }
 
-  /* Responsive adjustments for the media posts */
   @media (max-width: 768px) {
     .media-post-card {
       padding: var(--space-3, 12px);
@@ -1752,7 +1703,6 @@
     }
   }
 
-  /* Media grid (original style) */
   .media-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1777,7 +1727,6 @@
     transform: scale(1.05);
   }
 
-  /* Dark mode */
   :global(.dark-theme) .profile-following-button {
     background-color: #000;
     color: #e7e9ea;
@@ -1790,7 +1739,6 @@
     border-color: rgba(244, 33, 46, 0.4);
   }
 
-  /* Responsive styles */
   @media (max-width: 768px) {
     .profile-avatar-wrapper {
       width: 80px;
@@ -1832,7 +1780,6 @@
     }
   }
 
-  /* Modal styles */
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -1940,7 +1887,6 @@
     background-color: var(--color-primary-hover);
   }
 
-  /* User list styling */
   .user-list {
     display: flex;
     flex-direction: column;

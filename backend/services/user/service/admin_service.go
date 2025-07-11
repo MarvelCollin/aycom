@@ -1,17 +1,17 @@
 package service
 
 import (
+	"aycom/backend/proto/user"
 	"context"
 	"log"
 	"time"
 
-	"aycom/backend/proto/user"
-	"aycom/backend/services/user/model"
-	"aycom/backend/services/user/repository"
-
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/repository"
 )
 
 func mapUserModelToProto(u *model.User) *user.User {
@@ -88,7 +88,6 @@ func (s *AdminService) BanUser(ctx context.Context, req *user.BanUserRequest) (*
 	log.Printf("AdminService.BanUser: Found user %s (ID: %s) with current ban status: %v",
 		existingUser.Username, req.UserId, existingUser.IsBanned)
 
-	// Only proceed with update if the ban status is different
 	if existingUser.IsBanned != req.Ban {
 		log.Printf("AdminService.BanUser: Updating ban status from %v to %v", existingUser.IsBanned, req.Ban)
 		err = s.adminRepo.BanUser(req.UserId, req.Ban)

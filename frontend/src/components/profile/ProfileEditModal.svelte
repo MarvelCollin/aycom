@@ -155,7 +155,6 @@
         }
       }
 
-      // Close the modal after successful upload
       dispatch("close");
     } catch (err) {
       console.error("Error updating profile media:", err);
@@ -171,7 +170,7 @@
   }
 
   function handleModalClick(e: MouseEvent) {
-    // Only close if the overlay itself was clicked (not its children)
+
     if ((e.currentTarget as HTMLElement) === e.target) {
       handleClose();
     }
@@ -187,7 +186,7 @@
     const target = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
     const field = target.id;
     const value = target.value;
-    
+
     formData = {
       ...formData,
       [field]: value
@@ -399,7 +398,7 @@
 {/if}
 
 <style>
-  /* Base theme variables */
+
   :global(:root) {
     --bg-color: #ffffff;
     --bg-secondary: #f7f9fa;
@@ -419,7 +418,6 @@
     --border-color: #2f3336;
   }
 
-  /* Modal overlay */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -430,7 +428,6 @@
     z-index: 50;
   }
 
-  /* Modal container */
   .modal-container {
     background-color: var(--bg-color);
     border-radius: 16px;
@@ -441,7 +438,6 @@
     overflow-y: auto;
   }
 
-  /* Modal header */
   .modal-header {
     display: flex;
     align-items: center;
@@ -515,7 +511,6 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Banner styling */
   .banner-container {
     position: relative;
     width: 100%;
@@ -549,7 +544,6 @@
     background-color: rgba(0, 0, 0, 0.3);
   }
 
-  /* Profile picture styling */
   .profile-picture-container {
     padding: 0 16px;
     margin-top: -64px;
@@ -600,7 +594,6 @@
     cursor: pointer;
   }
 
-  /* Upload elements */
   .upload-label {
     display: flex;
     flex-direction: column;
@@ -631,7 +624,6 @@
     display: none;
   }
 
-  /* Form styling */
   .form-container {
     padding: 16px;
     display: flex;

@@ -171,7 +171,7 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Invalidate user profile cache
+	
 	ctx := context.Background()
 	cachePattern := fmt.Sprintf("user_profile:%s*", userIDStr)
 	if err := utils.DeleteCachePattern(ctx, cachePattern); err != nil {
@@ -226,7 +226,7 @@ func RegisterUser(c *gin.Context) {
 
 	validationErrors := map[string]string{}
 
-	// Name validation
+	
 	if req.Name == "" {
 		validationErrors["name"] = "Name field is required"
 	} else if len(req.Name) < 4 {
@@ -237,7 +237,7 @@ func RegisterUser(c *gin.Context) {
 		validationErrors["name"] = "Name must not contain symbols or numbers"
 	}
 
-	// Username validation
+	
 	if req.Username == "" {
 		validationErrors["username"] = "Username field is required"
 	} else if len(req.Username) < 3 {
@@ -248,12 +248,12 @@ func RegisterUser(c *gin.Context) {
 		validationErrors["username"] = "Username can only contain letters, numbers, and underscores"
 	}
 
-	// Email validation
+	
 	if req.Email == "" {
 		validationErrors["email"] = "Email field is required"
 	}
 
-	// Password validation
+	
 	passwordErrors := []string{}
 
 	if req.Password == "" {
@@ -296,21 +296,21 @@ func RegisterUser(c *gin.Context) {
 		validationErrors["password"] = strings.Join(passwordErrors, "; ")
 	}
 
-	// Confirm password validation
+	
 	if req.ConfirmPassword == "" {
 		validationErrors["confirm_password"] = "Confirm Password field is required"
 	} else if req.Password != req.ConfirmPassword {
 		validationErrors["confirm_password"] = "Password and confirmation password do not match"
 	}
 
-	// Gender validation
+	
 	if req.Gender == "" {
 		validationErrors["gender"] = "Gender field is required"
 	} else if req.Gender != "male" && req.Gender != "female" {
 		validationErrors["gender"] = "Gender must be either 'male' or 'female'"
 	}
 
-	// Date of birth validation
+	
 	if req.DateOfBirth == "" {
 		validationErrors["date_of_birth"] = "Date of birth field is required"
 	} else {
@@ -339,12 +339,12 @@ func RegisterUser(c *gin.Context) {
 		}
 	}
 
-	// Security question validation
+	
 	if req.SecurityQuestion == "" {
 		validationErrors["security_question"] = "Security question field is required"
 	}
 
-	// Security answer validation
+	
 	if req.SecurityAnswer == "" {
 		validationErrors["security_answer"] = "Security answer field is required"
 	} else if len(req.SecurityAnswer) < 3 {
@@ -409,7 +409,7 @@ func LoginUser(c *gin.Context) {
 		return
 	}
 
-	// Skip reCAPTCHA verification in development mode
+	
 	devMode := utils.IsDevelopmentMode()
 
 	log.Printf("Login request received for email: %s (dev mode: %v, has recaptcha: %v)",
@@ -426,7 +426,7 @@ func LoginUser(c *gin.Context) {
 	}
 
 	if !devMode && req.RecaptchaToken != "" {
-		// Verify reCAPTCHA token
+		
 		log.Printf("Verifying reCAPTCHA token with length: %d", len(req.RecaptchaToken))
 
 		success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
@@ -973,13 +973,13 @@ func GetUserById(c *gin.Context) {
 
 	log.Printf("GetUserById Handler: Looking up user with ID: %s", userIdParam)
 
-	// Get requester ID for personalization
+	
 	var requesterID string
 	if id, exists := c.Get("userID"); exists {
 		requesterID = id.(string)
 	}
 
-	// Create cache key - include requester ID for personalized data (following status)
+	
 	cacheKey := fmt.Sprintf("user_profile:%s", userIdParam)
 	if requesterID != "" {
 		cacheKey = fmt.Sprintf("user_profile:%s:requester:%s", userIdParam, requesterID)
@@ -987,7 +987,7 @@ func GetUserById(c *gin.Context) {
 
 	ctx := context.Background()
 
-	// Try to get from cache first
+	
 	var cachedResponse gin.H
 	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
 		c.Header("X-Cache", "HIT")
@@ -995,7 +995,7 @@ func GetUserById(c *gin.Context) {
 		return
 	}
 
-	// Cache miss - fetch from user service
+	
 	c.Header("X-Cache", "MISS")
 
 	user, err := userServiceClient.GetUserById(userIdParam)
@@ -1028,7 +1028,7 @@ func GetUserById(c *gin.Context) {
 		},
 	}
 
-	// Cache the response for 30 minutes
+	
 	_ = utils.SetCache(ctx, cacheKey, response, 30*time.Minute)
 
 	utils.SendSuccessResponse(c, http.StatusOK, response)
@@ -1336,7 +1336,7 @@ func CreatePremiumRequest(c *gin.Context) {
 
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
-		origin = "http://localhost:3000"
+		origin = "http:
 	}
 	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")

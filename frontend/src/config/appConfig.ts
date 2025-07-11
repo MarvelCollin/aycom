@@ -3,25 +3,24 @@ const appConfig = {
 
   auth: {
     enabled: true,
-    tokenRefreshBuffer: 5 * 60 * 1000, // 5 minutes in milliseconds
-    tokenRefreshRetryDelay: 10 * 1000, // 10 seconds between failed refresh attempts
+    tokenRefreshBuffer: 5 * 60 * 1000, 
+    tokenRefreshRetryDelay: 10 * 1000, 
     loginUrl: "/login",
     registerUrl: "/register",
     logoutRedirectUrl: "/"
   },
 
   api: {
-    // For development in Docker, use the service name
-    // For browser access from outside Docker, use the port mapping
+
     baseUrl: (typeof window !== "undefined")
-      ? `${window.location.protocol}//${window.location.hostname}:8083/api/v1`  // Browser accessing API on mapped port 8083
-      : (import.meta.env.VITE_API_BASE_URL || "http://api_gateway:8081/api/v1"), // Inside Docker network use internal port 8081
-    // Use HTTP for WebSocket if on HTTP, WSS for HTTPS
+      ? `${window.location.protocol}
+      : (import.meta.env.VITE_API_BASE_URL || "http://api_gateway:8081/api/v1"), 
+
     wsUrl: (typeof window !== "undefined")
-      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:8083/api/v1`
+      ? `${window.location.protocol === "https:" ? "wss" : "ws"}:
       : (import.meta.env.VITE_WS_URL || "ws://api_gateway:8081/api/v1"),
     aiServiceUrl: (typeof window !== "undefined")
-      ? `${window.location.protocol}//${window.location.hostname}:5000`
+      ? `${window.location.protocol}
       : (import.meta.env.VITE_AI_SERVICE_URL || "http://ai_service:5000")
   },
 
@@ -36,22 +35,18 @@ const appConfig = {
   }
 };
 
-// Log the configuration for debugging
 console.log("[Config] Environment:", appConfig.environment);
 console.log("[Config] API URL:", appConfig.api.baseUrl);
 console.log("[Config] WebSocket URL:", appConfig.api.wsUrl);
 console.log("[Config] AI Service URL:", appConfig.api.aiServiceUrl);
 
-// Add more comprehensive API health check
 export const checkApiHealth = async () => {
   try {
     console.log(`[Config] Testing API connection to: ${appConfig.api.baseUrl}`);
 
-    // Add origin information to help with debugging CORS issues
     const currentOrigin = typeof window !== "undefined" ? window.location.origin : "unknown";
     console.log(`[Config] Current origin: ${currentOrigin}`);
 
-    // Check if API gateway is accessible
     const response = await fetch(`${appConfig.api.baseUrl}/health`, {
       method: "GET",
       headers: {
@@ -59,8 +54,8 @@ export const checkApiHealth = async () => {
         "Content-Type": "application/json",
         "Origin": currentOrigin
       },
-      mode: "cors", // Ensure CORS is enabled
-      credentials: "include" // Send cookies if available
+      mode: "cors", 
+      credentials: "include" 
     });
 
     console.log(`[Config] API health check status: ${response.status}`);
@@ -68,7 +63,6 @@ export const checkApiHealth = async () => {
     if (!response.ok) {
       console.warn(`[Config] API endpoint returned ${response.status} - API may not be working correctly`);
 
-      // Try to read the error response
       try {
         const errorText = await response.text();
         console.warn(`[Config] API error response: ${errorText}`);
@@ -78,7 +72,6 @@ export const checkApiHealth = async () => {
     } else {
       console.log("[Config] API connection successful");
 
-      // Check CORS headers in response
       const allowOrigin = response.headers.get("Access-Control-Allow-Origin");
       const allowMethods = response.headers.get("Access-Control-Allow-Methods");
       const allowHeaders = response.headers.get("Access-Control-Allow-Headers");
@@ -89,7 +82,6 @@ export const checkApiHealth = async () => {
         "Access-Control-Allow-Headers": allowHeaders || "not present"
       });
 
-      // Try to parse response
       try {
         const responseData = await response.json();
         console.log("[Config] API health response:", responseData);
@@ -98,7 +90,6 @@ export const checkApiHealth = async () => {
       }
     }
 
-    // Also check WebSocket connectivity
     console.log("[Config] Testing WebSocket connectivity...");
     try {
       const wsUrl = appConfig.api.wsUrl.replace("/api/v1", "") + "/api/v1/health/ws";
@@ -125,7 +116,6 @@ export const checkApiHealth = async () => {
       console.error("[Config] Error testing WebSocket connection:", wsError);
     }
 
-    // Also check chats endpoint specifically
     console.log("[Config] Testing chats endpoint...");
     try {
       const chatsResponse = await fetch(`${appConfig.api.baseUrl}/chats`, {
@@ -154,7 +144,6 @@ export const checkApiHealth = async () => {
   } catch (error) {
     console.error("[Config] Error connecting to API:", error);
 
-    // CORS errors don't provide much info in the error object
     if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
       console.error("[Config] This might be a CORS issue or the API server is not running");
       console.error("[Config] Try checking the Network tab in DevTools for more details");

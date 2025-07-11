@@ -515,23 +515,23 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
     const token = getAuthToken();
     logger.debug(`Sending message to chat ${chatId}`, { content: data.content });
 
-    // Explicitly create the message data object with proper validation
+    
     const messageData = {
-      content: (data.content || "").trim() // Ensure content field exists, is properly named (lowercase), and trimmed
+      content: (data.content || "").trim() 
     };
 
-    // Validate content is not empty
+    
     if (!messageData.content || messageData.content.length === 0) {
       logger.error("Cannot send empty message");
       throw new Error("Message content cannot be empty");
     }
 
-    // Add attachments if they exist (as a separate property, not through spread)
+    
     if (data.attachments && data.attachments.length > 0) {
       messageData["attachments"] = data.attachments;
     }
 
-    // Stringify the JSON directly for more control
+    
     const jsonBody = JSON.stringify(messageData);
     logger.debug("Message payload being sent (raw JSON):", jsonBody);
 
@@ -547,7 +547,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : ""
         },
-        body: jsonBody, // Use our pre-stringified JSON
+        body: jsonBody, 
         credentials: "include"
       });
 
@@ -600,7 +600,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
             throw new Error("Session error: Please log out and log in again.");
           }
 
-          // For server errors, don't use fallback - throw the actual error
+          
           throw new Error(`Server error: ${errorMessage}`);
         } else {
           throw new Error(errorMessage);
@@ -964,7 +964,7 @@ export async function testApiConnection() {
     logger.debug(`API Protocol: ${protocol}, Host: ${host}`);
 
     try {
-      const basicResponse = await fetch(`${protocol}//${host}/`, {
+      const basicResponse = await fetch(`${protocol}
         method: "GET",
         headers: {
           "Accept": "text/html,application/json"
@@ -1022,7 +1022,7 @@ export async function testApiConnection() {
     for (const endpoint of endpointsToTry) {
       try {
         logger.debug(`Testing API endpoint: ${endpoint}`);
-        const apiResponse = await fetch(`${protocol}//${host}${endpoint}`, {
+        const apiResponse = await fetch(`${protocol}
           method: "GET",
           headers: {
             "Content-Type": "application/json",

@@ -5,10 +5,11 @@ import (
 	"log"
 	"time"
 
-	"aycom/backend/event-bus/publisher"
-
 	"github.com/google/uuid"
 	"github.com/streadway/amqp"
+
+	"aycom/backend/event-bus/publisher"
+
 )
 
 type UserEventHandler struct {
@@ -31,7 +32,7 @@ func (h *UserEventHandler) Start() error {
 
 	for retries < maxRetries {
 
-		h.conn, err = amqp.Dial(getEnvFromHandler("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
+		h.conn, err = amqp.Dial(getEnvFromHandler("RABBITMQ_URL", "amqp:
 		if err == nil {
 			break
 		}
@@ -215,10 +216,10 @@ func (h *UserEventHandler) handleUserFollowed(event publisher.Event) {
 
 	log.Printf("User %s followed user %s", followerID, followedID)
 
-	// Here you can add logic to:
-	// - Send notifications
-	// - Update analytics
-	// - Trigger other services
+	
+	
+	
+	
 }
 
 func (h *UserEventHandler) handleUserUnfollowed(event publisher.Event) {
@@ -238,8 +239,8 @@ func (h *UserEventHandler) handleUserUnfollowed(event publisher.Event) {
 
 	log.Printf("User %s unfollowed user %s", followerID, followedID)
 
-	// Here you can add logic to:
-	// - Send notifications
-	// - Update analytics
-	// - Trigger other services
+	
+	
+	
+	
 }

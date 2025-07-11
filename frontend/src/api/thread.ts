@@ -5,7 +5,7 @@ import { createLoggerWithPrefix } from "../utils/logger";
 import { useAuth } from "../hooks/useAuth";
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const AI_SERVICE_URL = appConfig.api.aiServiceUrl || "http://localhost:5000";
+const AI_SERVICE_URL = appConfig.api.aiServiceUrl || "http:
 const logger = createLoggerWithPrefix("ThreadAPI");
 
 logger.info("Thread API using URL:", API_BASE_URL);
@@ -27,29 +27,29 @@ async function handleApiResponse(response: Response, errorMessage: string = "API
   return response.json();
 }
 
-// Check if token needs refresh before making API request
+
 async function ensureValidToken() {
   try {
     const { checkAndRefreshTokenIfNeeded } = useAuth();
     await checkAndRefreshTokenIfNeeded();
   } catch (error) {
     logger.warn("Error ensuring token freshness:", error);
-    // Continue with the request even if token refresh fails
-    // The server will respond with 401 if necessary
+    
+    
   }
 }
 
 async function makeApiRequest(url: string, method: string, body?: any, errorMessage?: string, timeout: number = 15000) {
   try {
-    // For GET requests that can work without authentication, we'll try but not fail if auth refresh fails
+    
     const isPublicReadRequest = method === "GET" && url.includes("/threads");
 
     try {
       const { checkAndRefreshTokenIfNeeded } = useAuth();
       await checkAndRefreshTokenIfNeeded();
     } catch (error) {
-      // If this is a public read request, continue without a token
-      // Otherwise re-throw the error
+      
+      
       if (!isPublicReadRequest) {
         throw error;
       }
@@ -57,15 +57,15 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
 
     const token = getAuthToken();
 
-    // Log full URL to help with debugging
+    
     logger.debug(`Full request URL: ${url}`);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      // Extract origin from URL for CORS headers
-      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+      
+      const origin = typeof window !== "undefined" ? window.location.origin : "http:
       logger.debug(`Using origin: ${origin} for CORS headers`);
 
       const options: RequestInit = {
@@ -74,13 +74,13 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : "",
           "Accept": "application/json",
-          "Origin": origin, // Use current origin
-          "Cache-Control": "no-cache" // Prevent caching issues
+          "Origin": origin, 
+          "Cache-Control": "no-cache" 
         },
         credentials: "include",
         signal: controller.signal,
-        mode: "cors", // Explicitly set CORS mode
-        redirect: "follow" // Handle redirects automatically
+        mode: "cors", 
+        redirect: "follow" 
       };
 
       if (body) {
@@ -90,37 +90,37 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
 
       logger.debug(`Making API request to ${url} with method ${method}`);
 
-      // For POST/PUT requests, check if we have a token first
+      
       if ((method === "POST" || method === "PUT") && !token && !isPublicReadRequest) {
         logger.warn("Attempting to make a write request without auth token");
       }
 
-      // Handle critical paths with special handling
+      
       if (url.includes("/threads") && method === "POST") {
         logger.debug("Critical path detected: Creating thread. Adding extra headers.");
-        // Add extra CORS headers for critical paths
+        
         options.headers = {
           ...options.headers,
           "X-Requested-With": "XMLHttpRequest"
         };
       }
 
-      // Create a wrapper for multiple fetches if needed (for redirect handling)
+      
       const fetchWithRetry = async (fetchUrl: string, fetchOptions: RequestInit, retries = 1): Promise<Response> => {
         try {
           const response = await fetch(fetchUrl, fetchOptions);
 
-          // Log response details
+          
           logger.debug(`API response status: ${response.status} ${response.statusText} for ${fetchUrl}`);
 
-          // Handle redirects manually if needed
+          
           if ([301, 302, 307, 308].includes(response.status)) {
             const location = response.headers.get("Location");
             if (location && retries > 0) {
               logger.info(`Following redirect to ${location}, retries left: ${retries-1}`);
 
-              // If redirect is to the same host, pass all headers
-              // If to a different host, be more careful with what we send
+              
+              
               const redirectUrl = new URL(location, fetchUrl);
 
               return fetchWithRetry(redirectUrl.toString(), fetchOptions, retries - 1);
@@ -134,11 +134,11 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
         }
       };
 
-      // Perform the actual fetch with retry capability
+      
       const response = await fetchWithRetry(url, options, 2);
       clearTimeout(timeoutId);
 
-      // For 401 responses on public endpoints, try again without auth token
+      
       if (response.status === 401 && isPublicReadRequest && token) {
         logger.warn("Got 401 on public endpoint, retrying without auth");
         const publicOptions = { ...options };
@@ -152,7 +152,7 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
         return await handleApiResponse(publicResponse, errorMessage);
       }
 
-      // Special handling for thread creation
+      
       if (url.includes("/threads") && method === "POST" && response.status >= 200 && response.status < 300) {
         logger.debug("Thread creation succeeded with status:", response.status);
       }
@@ -164,16 +164,16 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
         throw new Error("Request timed out");
       }
 
-      // Enhanced error logging for CORS issues
+      
       if (error.message.includes("CORS") || error.message.includes("cross-origin") || error.message === "Failed to fetch") {
         logger.error(`CORS error for ${url}:`, error.message);
 
-        // Try another approach for thread creation if that's what we're doing
+        
         if (url.includes("/threads") && method === "POST") {
           logger.debug("Thread creation CORS issue - attempting fallback approach");
 
           try {
-            // Try with different headers as a fallback
+            
             const fallbackOptions: RequestInit = {
               method,
               headers: {
@@ -186,7 +186,7 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
               body: body ? JSON.stringify(body) : undefined
             };
 
-            // Add an extra delay before retrying to allow any previous requests to settle
+            
             await new Promise(resolve => setTimeout(resolve, 500));
 
             const fallbackResponse = await fetch(url, fallbackOptions);
@@ -220,23 +220,23 @@ export async function createThread(data: Record<string, any>) {
       whoCanReply: data.who_can_reply
     });
 
-    // Ensure the API endpoint is correctly formatted
+    
     const url = `${API_BASE_URL}/threads`;
     logger.debug(`Using endpoint: ${url}`);
 
-    // Check if token is available before making request
+    
     const token = getAuthToken();
     if (!token) {
       logger.warn("No auth token available for createThread. User may need to log in");
       throw new Error("Authentication required. Please log in to post.");
     }
 
-    // Extra debugging
+    
     logger.debug(`Using auth token for createThread: ${token.substring(0, 10)}...${token.substring(token.length - 10)}`);
 
     try {
-      // Explicitly create the request with correct headers
-      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+      
+      const origin = typeof window !== "undefined" ? window.location.origin : "http:
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -261,7 +261,7 @@ export async function createThread(data: Record<string, any>) {
       logger.info("Thread created successfully");
       return result;
     } catch (apiError: any) {
-      // Handle API-specific errors with more detail
+      
       if (apiError.message?.includes("307") || apiError.message?.includes("Temporary Redirect")) {
         logger.error("Server returned redirect for thread creation. This could be a CORS issue");
         throw new Error("Server redirect occurred. This might be due to CORS configuration issues. Please check your network settings or contact support.");
@@ -286,7 +286,7 @@ export async function getThread(id: string) {
       "Failed to fetch thread"
     );
 
-    // Log the raw API response for debugging
+    
     logger.debug(`Thread API response for ID ${id}:`, response);
 
     if (!response || (typeof response === "object" && Object.keys(response).length === 0)) {
@@ -294,7 +294,7 @@ export async function getThread(id: string) {
       throw new Error(`Thread with ID ${id} not found or returned empty response`);
     }
 
-    // Ensure response has all required fields with consistent naming
+    
     const standardizedResponse = {
       id: response.id,
       content: response.content,
@@ -322,7 +322,7 @@ export async function getThread(id: string) {
   } catch (error) {
     logger.error(`Get thread ${id} failed:`, error);
 
-    // Provide more detailed error information
+    
     if (error instanceof Response) {
       try {
         const errorText = await error.text();
@@ -545,29 +545,29 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
   }
 }
 
-// Prevent multiple rapid like/unlike requests
+
 const likeDebounceMap = new Map();
-const DEBOUNCE_DELAY = 500; // ms
+const DEBOUNCE_DELAY = 500; 
 
 export async function likeThread(threadId: string) {
   try {
-    // Check for existing ongoing request
+    
     if (likeDebounceMap.has(threadId)) {
       logger.warn(`Like operation for thread ${threadId} already in progress, skipping`);
       return { success: false, message: "Operation already in progress" };
     }
 
-    // Set debounce lock
+    
     likeDebounceMap.set(threadId, true);
 
-    // Clear lock after delay regardless of outcome
+    
     setTimeout(() => {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
 
-    // Check if token exists - this is critical
+    
     if (!token) {
       logger.error(`Cannot like thread ${threadId}: No auth token available`);
       throw new Error("Authentication required. Please log in again.");
@@ -585,7 +585,7 @@ export async function likeThread(threadId: string) {
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error(`Authentication failed when liking thread ${threadId} - token may be invalid`);
         throw new Error("Your session has expired. Please log in again.");
@@ -603,7 +603,7 @@ export async function likeThread(threadId: string) {
     logger.error(`Like thread ${threadId} failed:`, error);
     throw error;
   } finally {
-    // Ensure lock is cleared in case of early return
+    
     setTimeout(() => {
       likeDebounceMap.delete(threadId);
     }, 50);
@@ -612,23 +612,23 @@ export async function likeThread(threadId: string) {
 
 export async function unlikeThread(threadId: string) {
   try {
-    // Check for existing ongoing request
+    
     if (likeDebounceMap.has(threadId)) {
       logger.warn(`Unlike operation for thread ${threadId} already in progress, skipping`);
       return { success: false, message: "Operation already in progress" };
     }
 
-    // Set debounce lock
+    
     likeDebounceMap.set(threadId, true);
 
-    // Clear lock after delay regardless of outcome
+    
     setTimeout(() => {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
 
-    // Check if token exists - this is critical
+    
     if (!token) {
       logger.error(`Cannot unlike thread ${threadId}: No auth token available`);
       throw new Error("Authentication required. Please log in again.");
@@ -646,7 +646,7 @@ export async function unlikeThread(threadId: string) {
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error(`Authentication failed when unliking thread ${threadId} - token may be invalid`);
         throw new Error("Your session has expired. Please log in again.");
@@ -664,7 +664,7 @@ export async function unlikeThread(threadId: string) {
     logger.error(`Unlike thread ${threadId} failed:`, error);
     throw error;
   } finally {
-    // Ensure lock is cleared in case of early return
+    
     setTimeout(() => {
       likeDebounceMap.delete(threadId);
     }, 50);
@@ -701,7 +701,7 @@ export async function getThreadReplies(threadId: string) {
 
     let standardizedReplies = [];
 
-    // Process replies to ensure they have consistent field structure
+    
     if (response && response.replies && Array.isArray(response.replies)) {
       standardizedReplies = response.replies.map(reply => ({
         id: reply.id,
@@ -764,28 +764,28 @@ export async function removeRepost(repostId: string) {
   }
 }
 
-// Prevent multiple rapid bookmark/unbookmark requests
+
 const bookmarkDebounceMap = new Map();
 
 export async function bookmarkThread(threadId: string) {
   try {
-    // Check for existing ongoing request
+    
     if (bookmarkDebounceMap.has(threadId)) {
       logger.warn(`Bookmark operation for thread ${threadId} already in progress, skipping`);
       return { success: false, message: "Operation already in progress" };
     }
 
-    // Set debounce lock
+    
     bookmarkDebounceMap.set(threadId, true);
 
-    // Clear lock after delay regardless of outcome
+    
     setTimeout(() => {
       bookmarkDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
 
-    // Check if token exists - this is critical
+    
     if (!token) {
       logger.error(`Cannot bookmark thread ${threadId}: No auth token available`);
       throw new Error("Authentication required. Please log in again.");
@@ -803,7 +803,7 @@ export async function bookmarkThread(threadId: string) {
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error(`Authentication failed when bookmarking thread ${threadId} - token may be invalid`);
         throw new Error("Your session has expired. Please log in again.");
@@ -821,7 +821,7 @@ export async function bookmarkThread(threadId: string) {
     logger.error(`Bookmark thread ${threadId} failed:`, error);
     throw error;
   } finally {
-    // Ensure lock is cleared in case of early return
+    
     setTimeout(() => {
       bookmarkDebounceMap.delete(threadId);
     }, 50);
@@ -830,23 +830,23 @@ export async function bookmarkThread(threadId: string) {
 
 export async function removeBookmark(threadId: string) {
   try {
-    // Check for existing ongoing request
+    
     if (bookmarkDebounceMap.has(threadId)) {
       logger.warn(`Remove bookmark operation for thread ${threadId} already in progress, skipping`);
       return { success: false, message: "Operation already in progress" };
     }
 
-    // Set debounce lock
+    
     bookmarkDebounceMap.set(threadId, true);
 
-    // Clear lock after delay regardless of outcome
+    
     setTimeout(() => {
       bookmarkDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
 
-    // Check if token exists - this is critical
+    
     if (!token) {
       logger.error(`Cannot remove bookmark for thread ${threadId}: No auth token available`);
       throw new Error("Authentication required. Please log in again.");
@@ -864,7 +864,7 @@ export async function removeBookmark(threadId: string) {
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error(`Authentication failed when removing bookmark for thread ${threadId} - token may be invalid`);
         throw new Error("Your session has expired. Please log in again.");
@@ -882,7 +882,7 @@ export async function removeBookmark(threadId: string) {
     logger.error(`Remove bookmark for thread ${threadId} failed:`, error);
     throw error;
   } finally {
-    // Ensure lock is cleared in case of early return
+    
     setTimeout(() => {
       bookmarkDebounceMap.delete(threadId);
     }, 50);
@@ -900,9 +900,9 @@ export async function getFollowingThreads(page = 1, limit = 20) {
       "Failed to fetch following threads"
     );
 
-    // Handle the response format from the backend
+    
     if (response && response.data) {
-      // The backend wraps the response in a data field
+      
       return {
         success: true,
         threads: response.data.threads || [],
@@ -911,7 +911,7 @@ export async function getFollowingThreads(page = 1, limit = 20) {
       };
     }
 
-    // Direct format (threads directly in response)
+    
     if (response && response.threads) {
       return {
         success: true,
@@ -921,7 +921,7 @@ export async function getFollowingThreads(page = 1, limit = 20) {
       };
     }
 
-    // Empty response fallback
+    
     return {
       success: true,
       threads: [],
@@ -947,7 +947,7 @@ export async function searchThreads(
       limit: limit.toString()
     });
 
-    // Make sure all filters are properly appended to the request
+    
     if (options?.filter) {
       params.append("filter", options.filter);
       console.log(`Using filter: ${options.filter}`);
@@ -995,7 +995,7 @@ export async function searchThreads(
   } catch (error) {
     logger.error("Search threads failed:", error);
 
-    // Return empty result set on error instead of throwing
+    
     return {
       threads: [],
       pagination: {
@@ -1015,15 +1015,15 @@ export async function searchThreadsWithMedia(
   options?: { filter?: string; category?: string }
 ) {
   try {
-    // Use the regular thread search endpoint instead, but filter for threads with media
+    
     const url = new URL(`${API_BASE_URL}/threads/search`);
 
     url.searchParams.append("q", query);
     url.searchParams.append("page", page.toString());
     url.searchParams.append("limit", limit.toString());
-    url.searchParams.append("media_only", "true"); // This will be a hint to the backend
+    url.searchParams.append("media_only", "true"); 
 
-    // Make sure filter is always included if provided
+    
     if (options?.filter) {
       url.searchParams.append("filter", options.filter);
       console.log(`Using filter for media search: ${options.filter}`);
@@ -1045,13 +1045,13 @@ export async function searchThreadsWithMedia(
     });
 
     if (!response.ok) {
-      // Don't fall back to empty results, throw an error instead
+      
       throw new Error(`Failed to search threads with media: ${response.status}`);
     }
 
     const data = await response.json();
 
-    // Filter the results to only include threads with media (just in case backend doesn't filter)
+    
     if (data.threads) {
       data.threads = data.threads.filter(thread => thread.media && thread.media.length > 0);
     }
@@ -1115,15 +1115,15 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
       "Failed to fetch reply replies"
     );
 
-    // Process replies to ensure they have consistent field structure
+    
     if (data && data.replies && Array.isArray(data.replies)) {
       data.replies = data.replies.map(reply => {
-        // Make sure replies_count is set to 0 if not present
+        
         if (reply.replies_count === undefined && reply.repliesCount === undefined) {
           reply.replies_count = 0;
         }
 
-        // Ensure other required fields exist
+        
         return {
           id: reply.id,
           content: reply.content || "",
@@ -1144,7 +1144,7 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
           is_reposted: Boolean(reply.is_reposted),
           is_pinned: Boolean(reply.is_pinned),
           media: Array.isArray(reply.media) ? reply.media : [],
-          // Include parent information
+          
           parent_content: reply.parent_content || null,
           parent_user: reply.parent_user || null
         };
@@ -1206,7 +1206,7 @@ export async function likeReply(replyId: string) {
   try {
     const token = getAuthToken();
 
-    // Check if token exists
+    
     if (!token) {
       logger.error(`Cannot like reply ${replyId}: No auth token available`);
       throw new Error("Authentication required. Please log in again.");
@@ -1245,7 +1245,7 @@ export async function unlikeReply(replyId: string) {
   try {
     const token = getAuthToken();
 
-    // Check if token exists
+    
     if (!token) {
       logger.error(`Cannot unlike reply ${replyId}: No auth token available`);
       throw new Error("Authentication required. Please log in again.");
@@ -1261,7 +1261,7 @@ export async function unlikeReply(replyId: string) {
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error(`Authentication failed when unliking reply ${replyId} - token may be invalid`);
         throw new Error("Your session has expired. Please log in again.");
@@ -1323,7 +1323,7 @@ async function resolveUserIdIfNeeded(userId: string): Promise<string> {
     }
   }
 
-  // If it's not a UUID and not 'me', assume it's a username
+  
   try {
     logger.debug(`Attempting to resolve username: ${userId}`);
     const response = await fetch(`${API_BASE_URL}/users/username/${encodeURIComponent(userId)}`, {
@@ -1384,7 +1384,7 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
         };
       }
 
-      // Check again that we have a valid userId after resolution
+      
       if (!resolvedUserId) {
         logger.error("getUserThreads: Resolved userId is empty");
         return {
@@ -1397,9 +1397,9 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
 
       logger.debug(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-      // Create an AbortController to handle timeout
+      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
       try {
         const url = `${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`;
@@ -1414,7 +1414,7 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
           signal: controller.signal
         });
 
-        // Clear the timeout regardless of the outcome
+        
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -1436,22 +1436,22 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
             logger.error("Could not parse error response:", parseError);
           }
 
-          // For 400 errors, check if it might be a UUID validation issue
+          
           if (response.status === 400) {
             logger.error(`Bad Request (400) when fetching threads for user ID: ${resolvedUserId}`);
             
-            // Try to refresh the auth token and get the current user ID again
+            
             if (userId === "me") {
               logger.debug("Attempting to refresh auth token...");
-              // Optional: implement auth token refresh logic here
+              
             }
           }
 
-          // For 500 errors, we'll retry
+          
           if (response.status >= 500) {
             throw new Error(errorMessage);
           } else {
-            // For 4xx errors, we'll return an empty result with an error flag
+            
             return {
               threads: [],
               total: 0,
@@ -1465,31 +1465,31 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
         const result = await response.json();
         logger.debug(`Successfully fetched threads for user ${resolvedUserId}:`, result);
 
-        // Check if the result has the expected structure
+        
         if (!result.threads && result.success) {
           logger.warn("Response is missing threads array:", result);
 
-          // Try to adapt to different API response formats
+          
           if (Array.isArray(result.data)) {
             result.threads = result.data;
             logger.debug("Using data array as threads");
           }
         }
 
-        // Add success flag for more consistent handling
+        
         return {
           ...result,
           success: true
         };
       } catch (fetchError) {
-        // Make sure we clear the timeout if there was an error
+        
         clearTimeout(timeoutId);
         throw fetchError;
       }
     } catch (error: any) {
       lastError = error;
 
-      // If this was a timeout or network error, log and retry
+      
       const isNetworkError = error.name === "AbortError" ||
                             error.message?.includes("network") ||
                             error.message?.includes("timeout");
@@ -1499,22 +1499,22 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
         retryCount++;
 
         if (retryCount <= maxRetries) {
-          // Wait before retrying: 1s, then 3s
+          
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
           continue;
         }
       } else {
-        // For other types of errors, don't retry
+        
         logger.error("Non-retriable error in getUserThreads:", error);
         break;
       }
     }
   }
 
-  // If we got here, all retries failed
+  
   logger.error("Error in getUserThreads after all retries:", lastError);
 
-  // Return an empty result with error information
+  
   return {
     threads: [],
     total: 0,
@@ -1533,9 +1533,9 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
       const resolvedUserId = await resolveUserIdIfNeeded(userId);
       logger.debug(`Fetching replies for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-      // Create an AbortController to handle timeout
+      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
       try {
         const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/replies?page=${page}&limit=${limit}`, {
@@ -1547,7 +1547,7 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
           signal: controller.signal
         });
 
-        // Clear the timeout regardless of the outcome
+        
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -1562,11 +1562,11 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
             logger.error("Could not parse error response:", parseError);
           }
 
-          // For 500 errors, we'll retry
+          
           if (response.status >= 500) {
             throw new Error(errorMessage);
           } else {
-            // For 4xx errors, we'll return an empty result with an error flag
+            
             return {
               replies: [],
               total: 0,
@@ -1578,20 +1578,20 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
 
         const result = await response.json();
 
-        // Add success flag for more consistent handling
+        
         return {
           ...result,
           success: true
         };
       } catch (fetchError) {
-        // Make sure we clear the timeout if there was an error
+        
         clearTimeout(timeoutId);
         throw fetchError;
       }
     } catch (error: any) {
       lastError = error;
 
-      // If this was a timeout or network error, log and retry
+      
       const isNetworkError = error.name === "AbortError" ||
                              error.message?.includes("network") ||
                              error.message?.includes("timeout");
@@ -1601,22 +1601,22 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
         retryCount++;
 
         if (retryCount <= maxRetries) {
-          // Wait before retrying: 1s, then 3s
+          
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
           continue;
         }
       } else {
-        // For other types of errors, don't retry
+        
         logger.error("Non-retriable error in getUserReplies:", error);
         break;
       }
     }
   }
 
-  // If we got here, all retries failed
+  
   logger.error("Error in getUserReplies after all retries:", lastError);
 
-  // Return an empty result with error information
+  
   return {
     replies: [],
     total: 0,
@@ -1642,9 +1642,9 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
       const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/likes?page=${page}&limit=${limit}`;
       logger.debug(`Making request to: ${endpoint}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-      // Create an AbortController to handle timeout
+      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
       try {
         const response = await fetch(endpoint, {
@@ -1657,7 +1657,7 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
           signal: controller.signal
         });
 
-        // Clear the timeout regardless of the outcome
+        
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -1670,11 +1670,11 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
             logger.error("Could not parse error response:", parseError);
           }
 
-          // For 500 errors, we'll retry
+          
           if (response.status >= 500) {
             throw new Error(errorMessage);
           } else {
-            // For 4xx errors, we'll return an empty result with an error flag
+            
             return {
               threads: [],
               total: 0,
@@ -1686,20 +1686,20 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
 
         const responseData = await response.json();
 
-        // Add success flag for more consistent handling
+        
         return {
           ...responseData,
           success: true
         };
       } catch (fetchError) {
-        // Make sure we clear the timeout if there was an error
+        
         clearTimeout(timeoutId);
         throw fetchError;
       }
     } catch (error: any) {
       lastError = error;
 
-      // If this was a timeout or network error, log and retry
+      
       const isNetworkError = error.name === "AbortError" ||
                              error.message?.includes("network") ||
                              error.message?.includes("timeout");
@@ -1709,22 +1709,22 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
         retryCount++;
 
         if (retryCount <= maxRetries) {
-          // Wait before retrying: 1s, then 3s
+          
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
           continue;
         }
       } else {
-        // For other types of errors, don't retry
+        
         logger.error("Non-retriable error in getUserLikedThreads:", error);
         break;
       }
     }
   }
 
-  // If we got here, all retries failed
+  
   logger.error("Error in getUserLikedThreads after all retries:", lastError);
 
-  // Return an empty result with error information
+  
   return {
     threads: [],
     total: 0,
@@ -1743,9 +1743,9 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
       const resolvedUserId = await resolveUserIdIfNeeded(userId);
       logger.debug(`Fetching media for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-      // Create an AbortController to handle timeout
+      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
       try {
         const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/media?page=${page}&limit=${limit}`, {
@@ -1757,7 +1757,7 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
           signal: controller.signal
         });
 
-        // Clear the timeout regardless of the outcome
+        
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -1772,11 +1772,11 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
             logger.error("Could not parse error response:", parseError);
           }
 
-          // For 500 errors, we'll retry
+          
           if (response.status >= 500) {
             throw new Error(errorMessage);
           } else {
-            // For 4xx errors, we'll return an empty result with an error flag
+            
             return {
               media: [],
               total: 0,
@@ -1788,20 +1788,20 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
 
         const result = await response.json();
 
-        // Add success flag for more consistent handling
+        
         return {
           ...result,
           success: true
         };
       } catch (fetchError) {
-        // Make sure we clear the timeout if there was an error
+        
         clearTimeout(timeoutId);
         throw fetchError;
       }
     } catch (error: any) {
       lastError = error;
 
-      // If this was a timeout or network error, log and retry
+      
       const isNetworkError = error.name === "AbortError" ||
                              error.message?.includes("network") ||
                              error.message?.includes("timeout");
@@ -1811,22 +1811,22 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
         retryCount++;
 
         if (retryCount <= maxRetries) {
-          // Wait before retrying: 1s, then 3s
+          
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
           continue;
         }
       } else {
-        // For other types of errors, don't retry
+        
         logger.error("Non-retriable error in getUserMedia:", error);
         break;
       }
     }
   }
 
-  // If we got here, all retries failed
+  
   logger.error("Error in getUserMedia after all retries:", lastError);
 
-  // Return an empty result with error information
+  
   return {
     media: [],
     total: 0,
@@ -1839,7 +1839,7 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
   try {
     const token = getAuthToken();
 
-    // Check if token exists - this is critical
+    
     if (!token) {
       logger.error("Cannot get user bookmarks: No auth token available");
       throw new Error("Authentication required. Please log in again.");
@@ -1852,7 +1852,7 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
       throw new Error("User ID is required");
     }
 
-    // Set up URL for bookmarks API
+    
     const url = `${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`;
     logger.debug(`Fetching bookmarks from: ${url} for user ${actualUserId}`);
     logger.debug(`Auth token available: ${!!token}, length: ${token?.length}`);
@@ -1867,7 +1867,7 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error("Authentication failed when getting bookmarks - token may be invalid");
         throw new Error("Your session has expired. Please log in again.");
@@ -1880,13 +1880,13 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     const data = await response.json();
     logger.debug("Bookmarks API returned data:", data);
 
-    // HANDLE BOTH RESPONSE FORMATS:
-    // 1. {data: {bookmarks: [...]}}
-    // 2. {bookmarks: [...]}
+    
+    
+    
     const bookmarks = data.data?.bookmarks || data.bookmarks || [];
     logger.debug(`Bookmarks count: ${bookmarks.length}`);
 
-    // Return data structure that matches what the frontend expects
+    
     return {
       success: true,
       bookmarks: bookmarks,
@@ -1903,7 +1903,7 @@ export const searchBookmarks = async (query: string, page = 1, limit = 10): Prom
   try {
     const token = getAuthToken();
 
-    // Check if token exists - this is critical
+    
     if (!token) {
       logger.error("Cannot search bookmarks: No auth token available");
       throw new Error("Authentication required. Please log in again.");
@@ -1922,7 +1922,7 @@ export const searchBookmarks = async (query: string, page = 1, limit = 10): Prom
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
+      
       if (response.status === 401) {
         logger.error("Authentication failed when searching bookmarks - token may be invalid");
         throw new Error("Your session has expired. Please log in again.");
@@ -1935,7 +1935,7 @@ export const searchBookmarks = async (query: string, page = 1, limit = 10): Prom
     const data = await response.json();
     logger.debug("Search bookmarks API returned data:", data);
 
-    // Return data structure that matches what the frontend expects
+    
     return {
       success: true,
       bookmarks: data.bookmarks || [],

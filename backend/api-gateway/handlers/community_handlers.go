@@ -1122,7 +1122,7 @@ func ListCategories(c *gin.Context) {
 	ctx := context.Background()
 	cacheKey := "community_categories"
 
-	// Try to get from cache first
+	
 	var cachedResponse gin.H
 	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
 		c.Header("X-Cache", "HIT")
@@ -1130,7 +1130,7 @@ func ListCategories(c *gin.Context) {
 		return
 	}
 
-	// Cache miss - fetch from community service
+	
 	c.Header("X-Cache", "MISS")
 
 	if CommunityClient == nil {
@@ -1164,7 +1164,7 @@ func ListCategories(c *gin.Context) {
 		"categories": categories,
 	}
 
-	// Cache the response for 12 hours
+	
 	_ = utils.SetCache(context.Background(), cacheKey, response, 12*time.Hour)
 
 	utils.SendSuccessResponse(c, 200, response)

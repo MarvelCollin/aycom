@@ -21,24 +21,21 @@ function handleMessage(message) {
   messages = [{
     timestamp: new Date().toISOString(),
     data: JSON.stringify(message, null, 2)
-  }, ...messages].slice(0, 10); // Keep only the last 10 messages
+  }, ...messages].slice(0, 10); 
 }
 
 let unregisterHandler;
 
-// Connect to WebSocket when user is authenticated
 onMount(async () => {
   if (!authStore.isAuthenticated()) {
-    // Use simple redirection since we don't have the navigation function yet
+
     toastStore.showToast("You need to log in to access this page", "warning");
     window.location.href = "/login";
     return;
   }
 
-  // Register message handler
   unregisterHandler = notificationWebsocketStore.registerMessageHandler(handleMessage);
 
-  // Attempt connection
   notificationWebsocketStore.connect();
 });
 

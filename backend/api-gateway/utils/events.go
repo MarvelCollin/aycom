@@ -87,7 +87,7 @@ func (p *rabbitMQEventPublisher) connect() error {
 		return fmt.Errorf("failed to open RabbitMQ channel: %w", err)
 	}
 
-	// Declare the events exchange
+	
 	err = p.channel.ExchangeDeclare(
 		"events",
 		"topic",
@@ -133,7 +133,7 @@ func (p *rabbitMQEventPublisher) PublishEvent(routingKey string, event Event) er
 		return fmt.Errorf("not connected to RabbitMQ, event will be lost: %+v", event)
 	}
 
-	// Set default values
+	
 	if event.ID == "" {
 		event.ID = uuid.New().String()
 	}
@@ -192,7 +192,7 @@ func (p *rabbitMQEventPublisher) Close() error {
 	return nil
 }
 
-// Helper functions for common events
+
 func PublishUserFollowedEvent(followerID, followedID string, additionalData EventData) error {
 	if eventPublisher == nil {
 		return fmt.Errorf("event publisher not initialized")
@@ -204,7 +204,7 @@ func PublishUserFollowedEvent(followerID, followedID string, additionalData Even
 		"action":      "follow",
 	}
 
-	// Merge additional data
+	
 	for k, v := range additionalData {
 		data[k] = v
 	}
@@ -228,7 +228,7 @@ func PublishUserUnfollowedEvent(followerID, followedID string, additionalData Ev
 		"action":      "unfollow",
 	}
 
-	// Merge additional data
+	
 	for k, v := range additionalData {
 		data[k] = v
 	}
@@ -252,7 +252,7 @@ func PublishThreadLikedEvent(threadID, userID string, additionalData EventData) 
 		"action":    "like",
 	}
 
-	// Merge additional data
+	
 	for k, v := range additionalData {
 		data[k] = v
 	}
@@ -276,7 +276,7 @@ func PublishThreadUnlikedEvent(threadID, userID string, additionalData EventData
 		"action":    "unlike",
 	}
 
-	// Merge additional data
+	
 	for k, v := range additionalData {
 		data[k] = v
 	}
@@ -300,7 +300,7 @@ func PublishThreadBookmarkedEvent(threadID, userID string, additionalData EventD
 		"action":    "bookmark",
 	}
 
-	// Merge additional data
+	
 	for k, v := range additionalData {
 		data[k] = v
 	}
@@ -324,7 +324,7 @@ func PublishThreadUnbookmarkedEvent(threadID, userID string, additionalData Even
 		"action":    "unbookmark",
 	}
 
-	// Merge additional data
+	
 	for k, v := range additionalData {
 		data[k] = v
 	}
