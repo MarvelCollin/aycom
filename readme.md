@@ -1,6 +1,5 @@
 ## 📋 Architecture
 
- 
 ### Backend Services
 
 AYCOM follows a microservices architecture with the following components:
