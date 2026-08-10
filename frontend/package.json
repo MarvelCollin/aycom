@@ -31,7 +31,7 @@
     "vite": "^8.2.1"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.6",
+    "@supabase/supabase-js": "^2.112.2",
     "axios": "^1.18.0",
     "svelte-feather-icons": "^4.2.0",
     "svelte-icons": "^2.1.0",
