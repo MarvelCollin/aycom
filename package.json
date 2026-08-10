@@ -4,7 +4,7 @@
     "node-fetch": "^2.7.0",
     "svelte-feather-icons": "^4.2.0",
     "timeago.js": "^4.0.2",
-    "uuid": "^11.1.0",
+    "uuid": "^14.0.0",
     "ws": "^8.21.0"
   }
 }
